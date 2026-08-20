@@ -20,6 +20,7 @@ from homeassistant.components.climate import (
 )
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.const import ATTR_ENTITY_ID, EVENT_CALL_SERVICE, STATE_OFF, STATE_ON
+from homeassistant.core import callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util.unit_system import US_CUSTOMARY_SYSTEM
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_mock_service
@@ -110,6 +111,7 @@ def set_source_states(hass) -> None:
     hass.states.async_set("switch.test_silent", STATE_OFF)
     hass.states.async_set("switch.test_heat_source", STATE_OFF)
 
+    @callback
     def emulate_physical_acknowledgement(event) -> None:
         """Make state-only fixtures acknowledge commands like real integrations."""
         data = event.data
