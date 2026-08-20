@@ -22,6 +22,7 @@ ROOM_DATA = {
     "temperature_sensor_entity_ids": ["sensor.test_temperature"],
     "ac_entity_id": "climate.test_ac",
     "heater_entity_id": "climate.test_heater",
+    "window_entity_ids": ["binary_sensor.window_one", "binary_sensor.window_two"],
     "heating_hysteresis_on": 0.5,
     "heating_hysteresis_off": 0.3,
     "cooling_hysteresis_on": 0.5,
@@ -90,6 +91,12 @@ async def test_room_subentry_flow_creates_room(hass) -> None:
         "minimum_seconds_cooling_on",
         "minimum_seconds_cooling_off",
     ]
+    window_selector = next(
+        selector
+        for key, selector in result["data_schema"].schema.items()
+        if key.schema == "window_entity_ids"
+    )
+    assert window_selector.config["multiple"] is True
 
     result = await hass.config_entries.subentries.async_configure(result["flow_id"], ROOM_DATA)
     assert result["type"] is FlowResultType.CREATE_ENTRY
@@ -98,6 +105,10 @@ async def test_room_subentry_flow_creates_room(hass) -> None:
     subentry = next(iter(entry.subentries.values()))
     assert subentry.subentry_type == SUBENTRY_ROOM
     assert subentry.data["temperature_sensor_entity_ids"] == ["sensor.test_temperature"]
+    assert subentry.data["window_entity_ids"] == [
+        "binary_sensor.window_one",
+        "binary_sensor.window_two",
+    ]
     assert subentry.unique_id is not None
 
 

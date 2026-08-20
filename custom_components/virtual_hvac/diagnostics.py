@@ -108,7 +108,8 @@ def _room_diagnostics(config: RoomConfig, runtime: RoomRuntime | None) -> dict[s
     """Describe room structure and safe state categories without identifiers."""
     result: dict[str, Any] = {
         "temperature_sensor_count": len(config.temperature_sensor_entity_ids),
-        "configured_inputs": {"window": config.window_entity_id is not None},
+        "window_sensor_count": len(config.window_entity_ids),
+        "configured_inputs": {"window": bool(config.window_entity_ids)},
         "configured_outputs": {
             "ac": config.ac_entity_id is not None,
             "heater": config.heater_entity_id is not None,

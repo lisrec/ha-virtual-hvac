@@ -80,12 +80,12 @@ class RoomRuntime:
     async def async_start(self) -> None:
         """Subscribe while remaining disarmed until startup inputs are validated."""
         entities = set(self.config.temperature_sensor_entity_ids)
+        entities.update(self.config.window_entity_ids)
         entities.update(
             entity_id
             for entity_id in (
                 self.config.ac_entity_id,
                 self.config.heater_entity_id,
-                self.config.window_entity_id,
                 self.config.rapid_entity_id,
                 self.config.silent_entity_id,
             )
@@ -321,7 +321,7 @@ class RoomRuntime:
                 preset=self.preset,
                 target_temperature=self.target_temperature,
                 current_temperature=self.current_temperature,
-                window_configured=self.config.window_entity_id is not None,
+                window_configured=bool(self.config.window_entity_ids),
                 window_open=self._window_open(),
                 ac_off_elapsed_seconds=self._ac_off_elapsed(now),
                 mode_elapsed_seconds=self._timestamps.elapsed(self._output_timestamp_key, now),
@@ -387,22 +387,23 @@ class RoomRuntime:
     async def _inputs_authoritative(self) -> bool:
         if self.current_temperature is None:
             return False
-        if self.config.window_entity_id is not None and self._window_open() is None:
+        if self.config.window_entity_ids and self._window_open() is None:
             return False
         return await self._actuators.async_inputs_authoritative()
 
     def _window_open(self) -> bool | None:
-        entity_id = self.config.window_entity_id
-        if entity_id is None:
+        if not self.config.window_entity_ids:
             return False
-        state = self.hass.states.get(entity_id)
-        if state is None or state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE):
-            return None
-        if state.state == STATE_ON:
-            return True
-        if state.state == STATE_OFF:
-            return False
-        return None
+        indeterminate = False
+        for entity_id in self.config.window_entity_ids:
+            state = self.hass.states.get(entity_id)
+            if state is None or state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE):
+                indeterminate = True
+            elif state.state == STATE_ON:
+                return True
+            elif state.state != STATE_OFF:
+                indeterminate = True
+        return None if indeterminate else False
 
     def _physical_ac_active(self) -> bool:
         entity_id = self.config.ac_entity_id

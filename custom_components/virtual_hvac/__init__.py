@@ -14,10 +14,12 @@ from .const import (
     CONF_MIN_COOLING_ON,
     CONF_MIN_HEATING_OFF,
     CONF_MIN_HEATING_ON,
+    CONF_WINDOW_ENTITIES,
     DOMAIN,
     LEGACY_CONF_AC_MIN_OFF,
     LEGACY_CONF_SHARED_MIN_OFF,
     LEGACY_CONF_SHARED_MIN_ON,
+    LEGACY_CONF_WINDOW_ENTITY,
     PLATFORMS,
     SUBENTRY_ROOM,
 )
@@ -28,10 +30,10 @@ VirtualHVACConfigEntry = ConfigEntry[ControllerRuntime]
 
 
 async def async_migrate_entry(hass: HomeAssistant, entry: VirtualHVACConfigEntry) -> bool:
-    """Migrate legacy protection fields to the 0.2 configuration contract."""
+    """Migrate legacy protection and window fields to the current contract."""
     if entry.version != 1:
         return False
-    if entry.minor_version >= 2:
+    if entry.minor_version >= 3:
         return True
 
     controller_data = dict(entry.data)
@@ -49,13 +51,17 @@ async def async_migrate_entry(hass: HomeAssistant, entry: VirtualHVACConfigEntry
         room_data.setdefault(CONF_ENABLE_SAFE_COOLING_DELAY, True)
         room_data.setdefault(CONF_MIN_COOLING_ON, legacy_cooling_off)
         room_data.setdefault(CONF_MIN_COOLING_OFF, legacy_cooling_off)
+        legacy_window = room_data.pop(LEGACY_CONF_WINDOW_ENTITY, None)
+        room_data.setdefault(
+            CONF_WINDOW_ENTITIES, [legacy_window] if legacy_window not in (None, "") else []
+        )
         hass.config_entries.async_update_subentry(entry, subentry, data=room_data)
 
     hass.config_entries.async_update_entry(
         entry,
         data=controller_data,
         version=1,
-        minor_version=2,
+        minor_version=3,
     )
     return True
 

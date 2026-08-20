@@ -37,7 +37,8 @@ def _private_entry() -> tuple[MockConfigEntry, RoomConfig, dict[str, str]]:
         "sensor": "sensor.private_temperature",
         "ac": "climate.private_ac",
         "heater": "climate.private_heater",
-        "window": "binary_sensor.private_window",
+        "window_one": "binary_sensor.private_window_one",
+        "window_two": "binary_sensor.private_window_two",
         "rapid": "switch.private_rapid",
         "silent": "switch.private_silent",
         "shared": "switch.private_heat_source",
@@ -47,7 +48,7 @@ def _private_entry() -> tuple[MockConfigEntry, RoomConfig, dict[str, str]]:
         "temperature_sensor_entity_ids": [private_values["sensor"]],
         "ac_entity_id": private_values["ac"],
         "heater_entity_id": private_values["heater"],
-        "window_entity_id": private_values["window"],
+        "window_entity_ids": [private_values["window_one"], private_values["window_two"]],
         "rapid_entity_id": private_values["rapid"],
         "silent_entity_id": private_values["silent"],
         "heating_hysteresis_on": 0.5,
@@ -134,6 +135,7 @@ async def test_diagnostics_redact_identifiers_but_expose_safe_structure(hass) ->
         "rooms": [
             {
                 "temperature_sensor_count": 1,
+                "window_sensor_count": 2,
                 "configured_inputs": {"window": True},
                 "configured_outputs": {
                     "ac": True,

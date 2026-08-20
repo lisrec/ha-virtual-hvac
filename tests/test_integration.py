@@ -37,7 +37,10 @@ def make_entry(*, shared: bool = True) -> tuple[MockConfigEntry, ConfigSubentry]
         ],
         "ac_entity_id": "climate.test_ac",
         "heater_entity_id": "climate.test_heater",
-        "window_entity_id": "binary_sensor.test_window",
+        "window_entity_ids": [
+            "binary_sensor.test_window",
+            "binary_sensor.test_second_window",
+        ],
         "rapid_entity_id": "switch.test_rapid",
         "silent_entity_id": "switch.test_silent",
         "heating_hysteresis_on": 0.5,
@@ -107,6 +110,7 @@ def set_source_states(hass) -> None:
         {ATTR_HVAC_MODES: [HVACMode.OFF, HVACMode.HEAT], ATTR_TEMPERATURE: 21.0},
     )
     hass.states.async_set("binary_sensor.test_window", STATE_OFF)
+    hass.states.async_set("binary_sensor.test_second_window", STATE_OFF)
     hass.states.async_set("switch.test_rapid", STATE_OFF)
     hass.states.async_set("switch.test_silent", STATE_OFF)
     hass.states.async_set("switch.test_heat_source", STATE_OFF)
@@ -314,7 +318,7 @@ async def test_boost_and_window_interlock(hass) -> None:
     assert hass.states.get(climate_id).attributes[ATTR_PRESET_MODE] == "boost"
 
     hass.states.async_set("switch.test_heat_source", STATE_ON)
-    hass.states.async_set("binary_sensor.test_window", STATE_ON)
+    hass.states.async_set("binary_sensor.test_second_window", STATE_ON)
     await hass.async_block_till_done()
 
     demand_id = entity_id(hass, "binary_sensor", entry, subentry, "heat_demand")

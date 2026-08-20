@@ -53,7 +53,7 @@ from .const import (
     CONF_TEMPERATURE_MAX_AGE,
     CONF_TEMPERATURE_SENSORS,
     CONF_TRV_OFFSET,
-    CONF_WINDOW_ENTITY,
+    CONF_WINDOW_ENTITIES,
     DEFAULT_CONTROLLER_NAME,
     DOMAIN,
     SUBENTRY_ROOM,
@@ -131,9 +131,9 @@ def _room_schema(defaults: Mapping[str, Any] | None = None) -> vol.Schema:
                 description={"suggested_value": values.get(CONF_HEATER_ENTITY)},
             ): EntitySelector(EntitySelectorConfig(domain=[Platform.CLIMATE, Platform.SWITCH])),
             vol.Optional(
-                CONF_WINDOW_ENTITY,
-                description={"suggested_value": values.get(CONF_WINDOW_ENTITY)},
-            ): EntitySelector(EntitySelectorConfig(domain=Platform.BINARY_SENSOR)),
+                CONF_WINDOW_ENTITIES,
+                default=values.get(CONF_WINDOW_ENTITIES, []),
+            ): EntitySelector(EntitySelectorConfig(domain=Platform.BINARY_SENSOR, multiple=True)),
             vol.Optional(
                 CONF_RAPID_ENTITY,
                 description={"suggested_value": values.get(CONF_RAPID_ENTITY)},
@@ -195,7 +195,7 @@ class VirtualHVACConfigFlow(ConfigFlow, domain=DOMAIN):
     """Configure the singleton Virtual HVAC controller."""
 
     VERSION = 1
-    MINOR_VERSION = 2
+    MINOR_VERSION = 3
 
     @classmethod
     @callback
@@ -295,6 +295,7 @@ class RoomSubentryFlow(ConfigSubentryFlow):
                 else:
                     stored = room.to_mapping()
                     stored[CONF_TEMPERATURE_SENSORS] = list(room.temperature_sensor_entity_ids)
+                    stored[CONF_WINDOW_ENTITIES] = list(room.window_entity_ids)
                     if current is not None:
                         return self.async_update_and_abort(
                             entry, current, title=room.name, data=stored

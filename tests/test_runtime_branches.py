@@ -31,7 +31,7 @@ def room_config(**overrides: object) -> RoomConfig:
         "temperature_sensor_entity_ids": ("sensor.temperature",),
         "ac_entity_id": "climate.ac",
         "heater_entity_id": "switch.heater",
-        "window_entity_id": "binary_sensor.window",
+        "window_entity_ids": ("binary_sensor.window",),
         "rapid_entity_id": "switch.rapid",
         "silent_entity_id": "switch.silent",
         "minimum_seconds_cooling_on": 0,
@@ -336,12 +336,19 @@ async def test_input_authority_requires_temperature_window_and_outputs(hass, mon
 
 @pytest.mark.asyncio
 async def test_window_and_ac_state_helpers_fail_closed(hass) -> None:
-    room = make_room(hass)
+    room = make_room(
+        hass,
+        window_entity_ids=("binary_sensor.window", "binary_sensor.second_window"),
+    )
     assert room._window_open() is None
     hass.states.async_set("binary_sensor.window", STATE_UNAVAILABLE)
+    hass.states.async_set("binary_sensor.second_window", STATE_OFF)
     assert room._window_open() is None
-    hass.states.async_set("binary_sensor.window", STATE_ON)
+    hass.states.async_set("binary_sensor.second_window", STATE_ON)
     assert room._window_open() is True
+    hass.states.async_set("binary_sensor.window", STATE_OFF)
+    hass.states.async_set("binary_sensor.second_window", STATE_OFF)
+    assert room._window_open() is False
     hass.states.async_set("binary_sensor.window", "unexpected")
     assert room._window_open() is None
 
@@ -350,6 +357,27 @@ async def test_window_and_ac_state_helpers_fail_closed(hass) -> None:
     assert math.isinf(room._ac_off_elapsed(utcnow()))
     no_ac = make_room(hass, ac_entity_id=None)
     assert math.isinf(no_ac._ac_off_elapsed(utcnow()))
+
+
+@pytest.mark.asyncio
+async def test_runtime_tracks_every_window_sensor(hass, monkeypatch) -> None:
+    tracked: set[str] = set()
+    room = make_room(
+        hass,
+        window_entity_ids=("binary_sensor.window", "binary_sensor.second_window"),
+    )
+
+    def track(_hass, entity_ids, _listener):
+        tracked.update(entity_ids)
+        return lambda: None
+
+    monkeypatch.setattr(
+        "custom_components.virtual_hvac.runtime.async_track_state_change_event", track
+    )
+
+    await room.async_start()
+
+    assert {"binary_sensor.window", "binary_sensor.second_window"} <= tracked
 
 
 @pytest.mark.asyncio

@@ -56,7 +56,7 @@ No physical output may be reused by another room or by the controller relay. Rap
 | Temperature sensors | Yes | One or more sensors with temperature device class or a supported temperature unit. |
 | Air-conditioning climate output | No | Climate entity used for supported cool, dry, fan-only, and optional heat-assist modes. |
 | Heater or TRV output | No | Heating climate entity, TRV, or switch. At least one AC or heater output is required. |
-| Window sensor | No | Binary sensor; open, unknown, or unavailable suppresses room outputs. |
+| Window sensors | No | One or more binary sensors; any open sensor suppresses room outputs. |
 | Rapid-mode switch | No | Switch enabled by boost while an HVAC path is active. |
 | Silent-mode switch | No | Switch enabled by sleep while an HVAC path is active. |
 
@@ -76,9 +76,9 @@ A heating climate entity is requested in heat mode and receives the virtual targ
 
 A successful request does not prove that a TRV opened. Virtual HVAC does not currently wait for position or flow acknowledgement before publishing heat demand. Do not use the optional shared relay unless a separate design guarantees safe readiness and circulation.
 
-### Window sensor
+### Window sensors
 
-Open suppresses heating and cooling. Unknown, unavailable, missing, or any state other than explicit closed also suppresses outputs. After explicit closed is reported, normal evaluation resumes immediately; the current release has no configurable close-delay field.
+Select every window sensor that belongs to the room. Any explicit open state suppresses heating and cooling. When none is open, an unknown, unavailable, missing, or unexpected state from any selected sensor also suppresses outputs. Normal evaluation resumes only after every selected sensor explicitly reports closed; the current release has no configurable close-delay field.
 
 ## Room control settings
 
