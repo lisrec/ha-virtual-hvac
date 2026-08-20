@@ -360,14 +360,14 @@ class RoomRuntime:
         else:
             self.physical_status = "outputs_confirmed"
             confirmed_at = utcnow()
-        if confirmed_at is not None and decision.output_mode != previous_output:
-            self._timestamps.record(self._output_timestamp_key, confirmed_at)
-            if (previous_output in _AC_ACTIVE_MODES) != (decision.output_mode in _AC_ACTIVE_MODES):
-                self._timestamps.record(self._ac_timestamp_key, confirmed_at)
-        elif confirmed_at is not None and not actuation.success:
+        if confirmed_at is not None and not actuation.success:
             # A failed path may have partially actuated before confirmed neutralization.
             self._timestamps.record(self._output_timestamp_key, confirmed_at)
             if self.config.ac_entity_id is not None:
+                self._timestamps.record(self._ac_timestamp_key, confirmed_at)
+        elif confirmed_at is not None and decision.output_mode != previous_output:
+            self._timestamps.record(self._output_timestamp_key, confirmed_at)
+            if (previous_output in _AC_ACTIVE_MODES) != (decision.output_mode in _AC_ACTIVE_MODES):
                 self._timestamps.record(self._ac_timestamp_key, confirmed_at)
         last_active = self._memory.last_output_mode
         if decision.output_mode is not OutputMode.OFF:

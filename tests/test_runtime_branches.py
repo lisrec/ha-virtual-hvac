@@ -748,3 +748,35 @@ async def test_unconfirmed_actuation_and_neutralization_do_not_record_transition
 
     assert room.physical_status == "physical_neutralization_failed"
     assert room._timestamps.elapsed(room._ac_timestamp_key, now) == pytest.approx(42.0)
+
+
+@pytest.mark.parametrize("previous_output", [OutputMode.HEAT, OutputMode.FAN_ONLY])
+@pytest.mark.asyncio
+async def test_confirmed_neutralization_records_conservative_ac_off_timestamp(
+    hass, monkeypatch, previous_output
+) -> None:
+    now = utcnow()
+    set_authoritative_states(hass)
+    room = make_room(hass, minimum_seconds_cooling_off=60)
+    room._ready = True
+    room.mode = VirtualMode.COOL
+    room.decision = ControlDecision(
+        previous_output, False, False, None, False, False, "previous_output"
+    )
+    room._timestamps.record(room._ac_timestamp_key, now - timedelta(seconds=120))
+    monkeypatch.setattr("custom_components.virtual_hvac.runtime.utcnow", lambda: now)
+    monkeypatch.setattr(
+        room._actuators,
+        "async_apply",
+        AsyncMock(return_value=ActuationResult(False, "apply_failed")),
+    )
+    monkeypatch.setattr(
+        room._actuators,
+        "async_neutralize",
+        AsyncMock(return_value=ActuationResult(True)),
+    )
+
+    await room._async_reconcile_once()
+
+    assert room.physical_status == "outputs_neutral_after_failure"
+    assert room._timestamps.elapsed(room._ac_timestamp_key, now) == 0.0
