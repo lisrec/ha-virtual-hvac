@@ -330,6 +330,7 @@ class RoomRuntime:
             self._memory,
         )
         previous_output = self.decision.output_mode
+        confirmed_at: datetime | None = None
         self._actuating = True
         try:
             actuation = await self._actuators.async_apply(decision, self.target_temperature)
@@ -354,12 +355,20 @@ class RoomRuntime:
                 if neutral.success
                 else "physical_neutralization_failed"
             )
+            if neutral.success:
+                confirmed_at = utcnow()
         else:
             self.physical_status = "outputs_confirmed"
-        if decision.output_mode != previous_output:
-            self._timestamps.record(self._output_timestamp_key, now)
+            confirmed_at = utcnow()
+        if confirmed_at is not None and decision.output_mode != previous_output:
+            self._timestamps.record(self._output_timestamp_key, confirmed_at)
             if (previous_output in _AC_ACTIVE_MODES) != (decision.output_mode in _AC_ACTIVE_MODES):
-                self._timestamps.record(self._ac_timestamp_key, now)
+                self._timestamps.record(self._ac_timestamp_key, confirmed_at)
+        elif confirmed_at is not None and not actuation.success:
+            # A failed path may have partially actuated before confirmed neutralization.
+            self._timestamps.record(self._output_timestamp_key, confirmed_at)
+            if self.config.ac_entity_id is not None:
+                self._timestamps.record(self._ac_timestamp_key, confirmed_at)
         last_active = self._memory.last_output_mode
         if decision.output_mode is not OutputMode.OFF:
             last_active = decision.output_mode
