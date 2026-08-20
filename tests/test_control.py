@@ -163,6 +163,45 @@ def test_auto_does_not_restart_ac_before_minimum_off_time() -> None:
     assert result.retry_after_seconds == 240
 
 
+def test_disabled_safe_cooling_delay_allows_immediate_start() -> None:
+    result = decide(
+        VirtualMode.COOL,
+        ac_off_elapsed=0,
+        config=room_config(
+            enable_safe_cooling_delay=False,
+            minimum_seconds_cooling_on=300,
+            minimum_seconds_cooling_off=300,
+        ),
+    )
+    assert result.output_mode is OutputMode.COOL
+
+
+def test_auto_keeps_cooling_until_minimum_on_time() -> None:
+    config = room_config(
+        enable_safe_cooling_delay=True,
+        minimum_seconds_cooling_on=300,
+        minimum_seconds_cooling_off=300,
+    )
+    controller = RoomController(config)
+    result = controller.decide(
+        ControlInput(
+            mode=VirtualMode.AUTO,
+            preset=Preset.COMFORT,
+            target_temperature=22.0,
+            current_temperature=21.6,
+            window_configured=False,
+            window_open=False,
+            ac_off_elapsed_seconds=0,
+            ac_on_elapsed_seconds=60,
+            mode_elapsed_seconds=1000,
+        ),
+        ControlMemory(last_output_mode=OutputMode.COOL),
+    )
+    assert result.output_mode is OutputMode.COOL
+    assert result.reason == "ac_minimum_on"
+    assert result.retry_after_seconds == 240
+
+
 def test_auto_does_not_reverse_heat_to_cool_inside_guard() -> None:
     result = decide(
         VirtualMode.AUTO,

@@ -43,7 +43,9 @@ def make_entry(*, shared: bool = True) -> tuple[MockConfigEntry, ConfigSubentry]
         "heating_hysteresis_off": 0.3,
         "cooling_hysteresis_on": 0.5,
         "cooling_hysteresis_off": 0.3,
-        "ac_minimum_off_seconds": 0,
+        "enable_safe_cooling_delay": True,
+        "minimum_seconds_cooling_on": 0,
+        "minimum_seconds_cooling_off": 0,
         "mode_reversal_guard_seconds": 0,
         "trv_target_offset": 1.0,
         "boost_ac_heat_assist": True,
@@ -56,8 +58,9 @@ def make_entry(*, shared: bool = True) -> tuple[MockConfigEntry, ConfigSubentry]
     )
     controller_data = {
         "name": "Virtual HVAC",
-        "shared_minimum_on_seconds": 0,
-        "shared_minimum_off_seconds": 0,
+        "enable_safe_heating_delay": True,
+        "minimum_seconds_heating_on": 0,
+        "minimum_seconds_heating_off": 0,
     }
     if shared:
         controller_data["shared_heat_source_entity_id"] = "switch.test_heat_source"

@@ -7,11 +7,57 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryError
 from homeassistant.helpers import device_registry as dr
 
-from .const import DOMAIN, PLATFORMS, SUBENTRY_ROOM
+from .const import (
+    CONF_ENABLE_SAFE_COOLING_DELAY,
+    CONF_ENABLE_SAFE_HEATING_DELAY,
+    CONF_MIN_COOLING_OFF,
+    CONF_MIN_COOLING_ON,
+    CONF_MIN_HEATING_OFF,
+    CONF_MIN_HEATING_ON,
+    DOMAIN,
+    LEGACY_CONF_AC_MIN_OFF,
+    LEGACY_CONF_SHARED_MIN_OFF,
+    LEGACY_CONF_SHARED_MIN_ON,
+    PLATFORMS,
+    SUBENTRY_ROOM,
+)
 from .models import ControllerConfig, RoomConfig, validate_output_ownership
 from .runtime import ControllerRuntime
 
 VirtualHVACConfigEntry = ConfigEntry[ControllerRuntime]
+
+
+async def async_migrate_entry(hass: HomeAssistant, entry: VirtualHVACConfigEntry) -> bool:
+    """Migrate legacy protection fields to the 0.2 configuration contract."""
+    if entry.version != 1:
+        return False
+    if entry.minor_version >= 2:
+        return True
+
+    controller_data = dict(entry.data)
+    legacy_heating_on = controller_data.pop(LEGACY_CONF_SHARED_MIN_ON, 300)
+    legacy_heating_off = controller_data.pop(LEGACY_CONF_SHARED_MIN_OFF, 180)
+    controller_data.setdefault(CONF_ENABLE_SAFE_HEATING_DELAY, True)
+    controller_data.setdefault(CONF_MIN_HEATING_ON, legacy_heating_on)
+    controller_data.setdefault(CONF_MIN_HEATING_OFF, legacy_heating_off)
+
+    for subentry in entry.subentries.values():
+        if subentry.subentry_type != SUBENTRY_ROOM:
+            continue
+        room_data = dict(subentry.data)
+        legacy_cooling_off = room_data.pop(LEGACY_CONF_AC_MIN_OFF, 300)
+        room_data.setdefault(CONF_ENABLE_SAFE_COOLING_DELAY, True)
+        room_data.setdefault(CONF_MIN_COOLING_ON, legacy_cooling_off)
+        room_data.setdefault(CONF_MIN_COOLING_OFF, legacy_cooling_off)
+        hass.config_entries.async_update_subentry(entry, subentry, data=room_data)
+
+    hass.config_entries.async_update_entry(
+        entry,
+        data=controller_data,
+        version=1,
+        minor_version=2,
+    )
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: VirtualHVACConfigEntry) -> bool:

@@ -33,19 +33,22 @@ from homeassistant.helpers.selector import (
 
 from .const import (
     CONF_AC_ENTITY,
-    CONF_AC_MIN_OFF,
     CONF_BOOST_AC_HEAT,
     CONF_COOL_HYSTERESIS_OFF,
     CONF_COOL_HYSTERESIS_ON,
+    CONF_ENABLE_SAFE_COOLING_DELAY,
+    CONF_ENABLE_SAFE_HEATING_DELAY,
     CONF_HEAT_HYSTERESIS_OFF,
     CONF_HEAT_HYSTERESIS_ON,
     CONF_HEATER_ENTITY,
+    CONF_MIN_COOLING_OFF,
+    CONF_MIN_COOLING_ON,
+    CONF_MIN_HEATING_OFF,
+    CONF_MIN_HEATING_ON,
     CONF_NAME,
     CONF_RAPID_ENTITY,
     CONF_REVERSAL_GUARD,
     CONF_SHARED_HEAT_SOURCE,
-    CONF_SHARED_MIN_OFF,
-    CONF_SHARED_MIN_ON,
     CONF_SILENT_ENTITY,
     CONF_TEMPERATURE_MAX_AGE,
     CONF_TEMPERATURE_SENSORS,
@@ -91,10 +94,14 @@ def _controller_schema(defaults: Mapping[str, Any] | None = None) -> vol.Schema:
                 description={"suggested_value": values.get(CONF_SHARED_HEAT_SOURCE)},
             ): EntitySelector(EntitySelectorConfig(domain=Platform.SWITCH)),
             vol.Required(
-                CONF_SHARED_MIN_ON, default=values.get(CONF_SHARED_MIN_ON, 300)
+                CONF_ENABLE_SAFE_HEATING_DELAY,
+                default=values.get(CONF_ENABLE_SAFE_HEATING_DELAY, True),
+            ): BooleanSelector(),
+            vol.Required(
+                CONF_MIN_HEATING_ON, default=values.get(CONF_MIN_HEATING_ON, 300)
             ): _number_selector(0, 86_400, 1, "s"),
             vol.Required(
-                CONF_SHARED_MIN_OFF, default=values.get(CONF_SHARED_MIN_OFF, 180)
+                CONF_MIN_HEATING_OFF, default=values.get(CONF_MIN_HEATING_OFF, 180)
             ): _number_selector(0, 86_400, 1, "s"),
         }
     )
@@ -152,7 +159,14 @@ def _room_schema(defaults: Mapping[str, Any] | None = None) -> vol.Schema:
                 default=values.get(CONF_COOL_HYSTERESIS_OFF, 0.3),
             ): _number_selector(0.1, 5.0, 0.1, "°"),
             vol.Required(
-                CONF_AC_MIN_OFF, default=values.get(CONF_AC_MIN_OFF, 300)
+                CONF_ENABLE_SAFE_COOLING_DELAY,
+                default=values.get(CONF_ENABLE_SAFE_COOLING_DELAY, True),
+            ): BooleanSelector(),
+            vol.Required(
+                CONF_MIN_COOLING_ON, default=values.get(CONF_MIN_COOLING_ON, 300)
+            ): _number_selector(0, 86_400, 1, "s"),
+            vol.Required(
+                CONF_MIN_COOLING_OFF, default=values.get(CONF_MIN_COOLING_OFF, 300)
             ): _number_selector(0, 86_400, 1, "s"),
             vol.Required(
                 CONF_REVERSAL_GUARD, default=values.get(CONF_REVERSAL_GUARD, 300)
@@ -181,7 +195,7 @@ class VirtualHVACConfigFlow(ConfigFlow, domain=DOMAIN):
     """Configure the singleton Virtual HVAC controller."""
 
     VERSION = 1
-    MINOR_VERSION = 1
+    MINOR_VERSION = 2
 
     @classmethod
     @callback

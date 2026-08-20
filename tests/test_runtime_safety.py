@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import timedelta
+from unittest.mock import AsyncMock
 
 import pytest
 from homeassistant.components.climate import ATTR_HVAC_MODE, ATTR_TEMPERATURE, HVACMode
@@ -22,7 +23,8 @@ def room_config(**overrides: object) -> RoomConfig:
         "temperature_sensor_entity_ids": ("sensor.temperature",),
         "ac_entity_id": "climate.ac",
         "heater_entity_id": "climate.heater",
-        "ac_minimum_off_seconds": 0,
+        "minimum_seconds_cooling_on": 0,
+        "minimum_seconds_cooling_off": 0,
         "mode_reversal_guard_seconds": 0,
     }
     values.update(overrides)
@@ -45,7 +47,16 @@ def set_climates(hass, *, heater_mode: HVACMode = HVACMode.OFF) -> None:
     hass.states.async_set(
         "climate.ac",
         HVACMode.OFF,
-        {"hvac_modes": [HVACMode.OFF, HVACMode.COOL], ATTR_TEMPERATURE: 21.0},
+        {
+            "hvac_modes": [
+                HVACMode.OFF,
+                HVACMode.COOL,
+                HVACMode.DRY,
+                HVACMode.FAN_ONLY,
+                HVACMode.HEAT,
+            ],
+            ATTR_TEMPERATURE: 21.0,
+        },
     )
     hass.states.async_set(
         "climate.heater",
@@ -104,6 +115,67 @@ async def test_command_without_physical_acknowledgement_fails(hass, monkeypatch)
 
     assert not result.success
     assert result.reason == "ac_stop_or_start_not_confirmed"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("initial_ac_mode", [HVACMode.COOL, HVACMode.DRY])
+async def test_heat_assist_stops_ac_before_starting_any_heating(hass, initial_ac_mode) -> None:
+    set_climates(hass)
+    ac = hass.states.get("climate.ac")
+    assert ac is not None
+    hass.states.async_set("climate.ac", initial_ac_mode, ac.attributes)
+    order: list[tuple[str, str]] = []
+
+    async def set_mode(call) -> None:
+        entity_id = call.data[ATTR_ENTITY_ID]
+        mode = call.data[ATTR_HVAC_MODE]
+        order.append((entity_id, mode))
+        old = hass.states.get(entity_id)
+        assert old is not None
+        hass.states.async_set(entity_id, mode, old.attributes)
+
+    async def set_temperature(call) -> None:
+        entity_id = call.data[ATTR_ENTITY_ID]
+        old = hass.states.get(entity_id)
+        assert old is not None
+        hass.states.async_set(
+            entity_id,
+            old.state,
+            old.attributes | {ATTR_TEMPERATURE: call.data[ATTR_TEMPERATURE]},
+        )
+
+    hass.services.async_register("climate", "set_hvac_mode", set_mode)
+    hass.services.async_register("climate", "set_temperature", set_temperature)
+
+    result = await ActuatorAdapter(hass, room_config()).async_apply(
+        decision(OutputMode.HEAT_ASSIST), 22.0
+    )
+
+    assert result.success
+    assert (
+        order.index(("climate.ac", HVACMode.OFF))
+        < order.index(("climate.heater", HVACMode.HEAT))
+        < order.index(("climate.ac", HVACMode.HEAT))
+    )
+
+
+@pytest.mark.asyncio
+async def test_heat_assist_failure_is_not_success_when_ac_off_fallback_is_unconfirmed(
+    hass, monkeypatch
+) -> None:
+    set_climates(hass)
+    adapter = ActuatorAdapter(hass, room_config())
+    monkeypatch.setattr(
+        adapter,
+        "_async_set_ac",
+        AsyncMock(side_effect=[True, False, False, False]),
+    )
+    monkeypatch.setattr(adapter, "_async_set_heater", AsyncMock(return_value=True))
+
+    result = await adapter.async_apply(decision(OutputMode.HEAT_ASSIST), 22.0)
+
+    assert not result.success
+    assert result.reason == "ac_heat_assist_not_confirmed"
 
 
 def test_protection_timestamps_treat_missing_corrupt_and_future_as_just_changed() -> None:

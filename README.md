@@ -12,7 +12,7 @@ Virtual HVAC is a local Home Assistant custom integration that presents one virt
 - Controller-level aggregate heat demand and shared heat-source status entities.
 - Temperature averaging with unit conversion and bounded reading freshness.
 - Heating and cooling hysteresis in automatic mode.
-- Window interlock, compressor minimum-off timing, and heat/cool reversal timing.
+- Window interlock, optional compressor minimum-on/minimum-off timing, and heat/cool reversal timing.
 - Comfort, boost, and sleep presets.
 - Optional centralized control of a shared heat-demand relay.
 - Local operation with no cloud service, telemetry, credentials, or remote API.

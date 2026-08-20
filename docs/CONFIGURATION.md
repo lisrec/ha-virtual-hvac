@@ -20,8 +20,9 @@ Only one Virtual HVAC controller entry is allowed.
 |---|---:|---:|---:|---|
 | Controller name | Yes | Virtual HVAC | Non-empty text | Display name only. It does not affect unique IDs. |
 | Shared heat-demand relay | No | Not configured | Switch entity | Optional controller-owned request contact for a shared heat source. |
-| Shared minimum-on time | Yes | 300 seconds | 0–86400 seconds | Minimum reported on duration before an off request. |
-| Shared minimum-off time | Yes | 180 seconds | 0–86400 seconds | Minimum reported off duration before an on request. |
+| Enable safe heating delay | Yes | On | Boolean | Enforce both minimum heating on and off times. |
+| Minimum heating on time | Yes | 300 seconds | 0–86400 seconds | Minimum reported on duration before an off request. |
+| Minimum heating off time | Yes | 180 seconds | 0–86400 seconds | Minimum reported off duration before an on request. |
 
 ### Shared relay requirements
 
@@ -87,7 +88,9 @@ Open suppresses heating and cooling. Unknown, unavailable, missing, or any state
 | Heating stop offset | 0.3 degrees | 0.1–5.0 | Continue heating until temperature reaches target plus this value. |
 | Cooling start offset | 0.5 degrees | 0.1–5.0 | In automatic mode, start cooling at or above target plus this value. |
 | Cooling stop offset | 0.3 degrees | 0.1–5.0 | In automatic mode, continue cooling until temperature reaches target minus this value. |
-| Air conditioner minimum-off time | 300 seconds | 0–86400 seconds | Delay cooling or dry startup after the AC reports off. |
+| Enable safe cooling delay | On | Boolean | Enforce both minimum cooling on and off times. |
+| Minimum cooling on time | 300 seconds | 0–86400 seconds | Keep automatic cooling active for at least this interval. Explicit off and safety interlocks remain immediate. |
+| Minimum cooling off time | 300 seconds | 0–86400 seconds | Delay cooling or dry startup after the AC reports off. |
 | Heat/cool reversal guard | 300 seconds | 0–86400 seconds | Delay a transition between heating and cooling paths. |
 | TRV target offset | 1.0 degrees | 0–5.0 | Added to the virtual target sent to a heating climate entity. |
 | Allow AC heat assist in boost | Off | Boolean | Allows boost to request AC heat alongside the primary heater. |

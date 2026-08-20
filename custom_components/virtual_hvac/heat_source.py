@@ -21,6 +21,8 @@ def decide_heat_source(
     state_elapsed_seconds: float,
     minimum_on_seconds: int,
     minimum_off_seconds: int,
+    *,
+    safe_delay_enabled: bool = True,
 ) -> HeatSourceDecision:
     """Return the safe next action for a shared heat-source relay."""
     if relay_state is None:
@@ -29,6 +31,8 @@ def decide_heat_source(
         return HeatSourceDecision(None, "steady_on")
     if not demand and not relay_state:
         return HeatSourceDecision(None, "steady_off")
+    if not safe_delay_enabled:
+        return HeatSourceDecision(demand, "turn_on" if demand else "turn_off")
     if demand:
         remaining = minimum_off_seconds - state_elapsed_seconds
         if remaining > 0:

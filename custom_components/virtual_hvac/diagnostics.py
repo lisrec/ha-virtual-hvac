@@ -14,7 +14,9 @@ from .runtime import ControllerRuntime, RoomRuntime
 
 _SAFE_ROOM_STATUSES = frozenset(
     {
+        "ac_minimum_on",
         "ac_minimum_off",
+        "ac_heat_assist_not_confirmed",
         "ac_stop_not_confirmed",
         "ac_stop_or_start_not_confirmed",
         "auto_continue_cool",
@@ -118,7 +120,9 @@ def _room_diagnostics(config: RoomConfig, runtime: RoomRuntime | None) -> dict[s
             "heating_hysteresis_off": config.heating_hysteresis_off,
             "cooling_hysteresis_on": config.cooling_hysteresis_on,
             "cooling_hysteresis_off": config.cooling_hysteresis_off,
-            "ac_minimum_off_seconds": config.ac_minimum_off_seconds,
+            "enable_safe_cooling_delay": config.enable_safe_cooling_delay,
+            "minimum_seconds_cooling_on": config.minimum_seconds_cooling_on,
+            "minimum_seconds_cooling_off": config.minimum_seconds_cooling_off,
             "mode_reversal_guard_seconds": config.mode_reversal_guard_seconds,
             "trv_target_offset": config.trv_target_offset,
             "boost_ac_heat_assist": config.boost_ac_heat_assist,
@@ -165,8 +169,9 @@ async def async_get_config_entry_diagnostics(
             "room_count": len(rooms),
             "shared_heat_source_configured": controller_config.shared_heat_source_entity_id
             is not None,
-            "shared_minimum_on_seconds": controller_config.shared_minimum_on_seconds,
-            "shared_minimum_off_seconds": controller_config.shared_minimum_off_seconds,
+            "enable_safe_heating_delay": controller_config.enable_safe_heating_delay,
+            "minimum_seconds_heating_on": controller_config.minimum_seconds_heating_on,
+            "minimum_seconds_heating_off": controller_config.minimum_seconds_heating_off,
             "runtime": {
                 "aggregate_heat_demand": runtime.aggregate_heat_demand,
                 "shared_status": _safe_category(runtime.shared_status, _SAFE_SHARED_STATUSES),

@@ -15,14 +15,16 @@
         "data": {
           "name": "Controller name",
           "shared_heat_source_entity_id": "Shared heat-demand relay",
-          "shared_minimum_off_seconds": "Shared minimum-off time",
-          "shared_minimum_on_seconds": "Shared minimum-on time"
+          "enable_safe_heating_delay": "Enable safe heating delay",
+          "minimum_seconds_heating_on": "Minimum heating on time",
+          "minimum_seconds_heating_off": "Minimum heating off time"
         },
         "data_description": {
           "name": "A display name for this Virtual HVAC controller.",
           "shared_heat_source_entity_id": "Optional normally-open, low-voltage heat-demand relay. Never select boiler mains power or domestic-hot-water power.",
-          "shared_minimum_off_seconds": "Seconds the shared relay must remain off before another on request is allowed.",
-          "shared_minimum_on_seconds": "Seconds the shared relay must remain on before an off request is allowed."
+          "enable_safe_heating_delay": "When enabled, enforce both minimum heating on and off times for the shared heat source.",
+          "minimum_seconds_heating_on": "Seconds the shared heat source must remain on before an off request is allowed.",
+          "minimum_seconds_heating_off": "Seconds the shared heat source must remain off before another on request is allowed."
         },
         "description": "Update global settings. Back up Home Assistant before changing output ownership. Ensure no automation, script, dashboard, voice assistant, or other controller writes to the selected relay.",
         "title": "Reconfigure Virtual HVAC"
@@ -31,14 +33,16 @@
         "data": {
           "name": "Controller name",
           "shared_heat_source_entity_id": "Shared heat-demand relay",
-          "shared_minimum_off_seconds": "Shared minimum-off time",
-          "shared_minimum_on_seconds": "Shared minimum-on time"
+          "enable_safe_heating_delay": "Enable safe heating delay",
+          "minimum_seconds_heating_on": "Minimum heating on time",
+          "minimum_seconds_heating_off": "Minimum heating off time"
         },
         "data_description": {
           "name": "A display name for this Virtual HVAC controller.",
           "shared_heat_source_entity_id": "Optional normally-open, low-voltage heat-demand relay. Never select boiler mains power or domestic-hot-water power.",
-          "shared_minimum_off_seconds": "Seconds the shared relay must remain off before another on request is allowed.",
-          "shared_minimum_on_seconds": "Seconds the shared relay must remain on before an off request is allowed."
+          "enable_safe_heating_delay": "When enabled, enforce both minimum heating on and off times for the shared heat source.",
+          "minimum_seconds_heating_on": "Seconds the shared heat source must remain on before an off request is allowed.",
+          "minimum_seconds_heating_off": "Seconds the shared heat source must remain off before another on request is allowed."
         },
         "description": "Create the single controller. Read the safety, configuration, and migration documentation before assigning physical outputs.",
         "title": "Set up Virtual HVAC"
@@ -63,7 +67,9 @@
         "reconfigure": {
           "data": {
             "ac_entity_id": "Air-conditioning climate output",
-            "ac_minimum_off_seconds": "Air conditioner minimum-off time",
+            "enable_safe_cooling_delay": "Enable safe cooling delay",
+            "minimum_seconds_cooling_on": "Minimum cooling on time",
+            "minimum_seconds_cooling_off": "Minimum cooling off time",
             "boost_ac_heat_assist": "Allow air conditioner heat assist in boost",
             "cooling_hysteresis_off": "Cooling stop offset",
             "cooling_hysteresis_on": "Cooling start offset",
@@ -81,7 +87,9 @@
           },
           "data_description": {
             "ac_entity_id": "Optional climate entity used for supported cooling, dry, fan-only, and heat-assist modes.",
-            "ac_minimum_off_seconds": "Seconds the air conditioner must remain off before a cooling or dry request may start it.",
+            "enable_safe_cooling_delay": "When enabled, enforce both minimum cooling on and off times for compressor-driven cooling and dry operation.",
+            "minimum_seconds_cooling_on": "Seconds cooling must remain active before automatic temperature control may stop it. Explicit off and safety interlocks still stop outputs immediately.",
+            "minimum_seconds_cooling_off": "Seconds the compressor must remain inactive before a cooling or dry request may start it. AC off and fan-only both count as inactive.",
             "boost_ac_heat_assist": "When enabled, the boost preset may request AC heating alongside the primary room heater. Enable only after verifying the equipment supports heating.",
             "cooling_hysteresis_off": "While cooling, stop after temperature falls below the target by this offset.",
             "cooling_hysteresis_on": "Start cooling when temperature reaches the target plus this offset.",
@@ -103,7 +111,9 @@
         "user": {
           "data": {
             "ac_entity_id": "Air-conditioning climate output",
-            "ac_minimum_off_seconds": "Air conditioner minimum-off time",
+            "enable_safe_cooling_delay": "Enable safe cooling delay",
+            "minimum_seconds_cooling_on": "Minimum cooling on time",
+            "minimum_seconds_cooling_off": "Minimum cooling off time",
             "boost_ac_heat_assist": "Allow air conditioner heat assist in boost",
             "cooling_hysteresis_off": "Cooling stop offset",
             "cooling_hysteresis_on": "Cooling start offset",
@@ -121,7 +131,9 @@
           },
           "data_description": {
             "ac_entity_id": "Optional climate entity used for supported cooling, dry, fan-only, and heat-assist modes.",
-            "ac_minimum_off_seconds": "Seconds the air conditioner must remain off before a cooling or dry request may start it.",
+            "enable_safe_cooling_delay": "When enabled, enforce both minimum cooling on and off times for compressor-driven cooling and dry operation.",
+            "minimum_seconds_cooling_on": "Seconds cooling must remain active before automatic temperature control may stop it. Explicit off and safety interlocks still stop outputs immediately.",
+            "minimum_seconds_cooling_off": "Seconds the compressor must remain inactive before a cooling or dry request may start it. AC off and fan-only both count as inactive.",
             "boost_ac_heat_assist": "When enabled, the boost preset may request AC heating alongside the primary room heater. Enable only after verifying the equipment supports heating.",
             "cooling_hysteresis_off": "While cooling, stop after temperature falls below the target by this offset.",
             "cooling_hysteresis_on": "Start cooling when temperature reaches the target plus this offset.",

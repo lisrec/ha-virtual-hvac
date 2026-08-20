@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, call
 
 import pytest
 from homeassistant.components.climate import ATTR_TEMPERATURE, HVACMode
@@ -172,19 +172,21 @@ async def test_failed_heater_start_triggers_best_effort_neutralization(hass, mon
 
 
 @pytest.mark.asyncio
-async def test_optional_heat_assist_failure_keeps_confirmed_primary_heater(
+async def test_heat_assist_failure_neutralizes_instead_of_reporting_success(
     hass, monkeypatch
 ) -> None:
     adapter = ActuatorAdapter(hass, room_config())
-    set_ac = AsyncMock(side_effect=[False, True])
+    set_ac = AsyncMock(side_effect=[True, False])
     monkeypatch.setattr(adapter, "_async_set_ac", set_ac)
     monkeypatch.setattr(adapter, "_async_set_heater", AsyncMock(return_value=True))
-    monkeypatch.setattr(adapter, "_async_set_presets", AsyncMock(return_value=True))
+    neutralize = AsyncMock(return_value=ActuationResult(True))
+    monkeypatch.setattr(adapter, "async_neutralize", neutralize)
 
     result = await adapter.async_apply(decision(OutputMode.HEAT_ASSIST), 21.0)
 
-    assert result.success
-    assert set_ac.await_args_list[1].args == (HVACMode.OFF, None)
+    assert result == ActuationResult(False, "ac_heat_assist_not_confirmed")
+    assert set_ac.await_args_list == [call(HVACMode.OFF, None), call(HVACMode.HEAT, 22.0)]
+    neutralize.assert_awaited_once_with(21.0)
 
 
 @pytest.mark.asyncio
