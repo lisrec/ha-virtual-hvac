@@ -12,13 +12,16 @@ class ControllerConfig:
 
     name: str
     shared_heat_source_entity_id: str | None = None
-    shared_minimum_on_seconds: int = 300
-    shared_minimum_off_seconds: int = 180
+    enable_safe_heating_delay: bool = True
+    minimum_seconds_heating_on: int = 300
+    minimum_seconds_heating_off: int = 180
 
     def __post_init__(self) -> None:
         if not self.name.strip():
             raise ValueError("controller name must not be empty")
-        for value in (self.shared_minimum_on_seconds, self.shared_minimum_off_seconds):
+        if not isinstance(self.enable_safe_heating_delay, bool):
+            raise ValueError("heating delay flag must be boolean")
+        for value in (self.minimum_seconds_heating_on, self.minimum_seconds_heating_off):
             if not 0 <= value <= 86_400:
                 raise ValueError("shared protection times must be between 0 and 86400 seconds")
 
@@ -29,7 +32,13 @@ class ControllerConfig:
     @classmethod
     def from_mapping(cls, data: dict[str, Any]) -> Self:
         """Build settings from Home Assistant config-entry data."""
-        return cls(**data)
+        values = dict(data)
+        values.setdefault("enable_safe_heating_delay", True)
+        if "minimum_seconds_heating_on" not in values:
+            values["minimum_seconds_heating_on"] = values.pop("shared_minimum_on_seconds", 300)
+        if "minimum_seconds_heating_off" not in values:
+            values["minimum_seconds_heating_off"] = values.pop("shared_minimum_off_seconds", 180)
+        return cls(**values)
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,7 +56,9 @@ class RoomConfig:
     heating_hysteresis_off: float = 0.3
     cooling_hysteresis_on: float = 0.5
     cooling_hysteresis_off: float = 0.3
-    ac_minimum_off_seconds: int = 300
+    enable_safe_cooling_delay: bool = True
+    minimum_seconds_cooling_on: int = 300
+    minimum_seconds_cooling_off: int = 300
     mode_reversal_guard_seconds: int = 300
     trv_target_offset: float = 1.0
     boost_ac_heat_assist: bool = False
@@ -56,6 +67,8 @@ class RoomConfig:
     def __post_init__(self) -> None:
         if not self.name.strip():
             raise ValueError("room name must not be empty")
+        if not isinstance(self.enable_safe_cooling_delay, bool):
+            raise ValueError("cooling delay flag must be boolean")
         if not self.temperature_sensor_entity_ids:
             raise ValueError("at least one temperature sensor is required")
         if len(set(self.temperature_sensor_entity_ids)) != len(self.temperature_sensor_entity_ids):
@@ -73,8 +86,9 @@ class RoomConfig:
         )
         if any(not 0.1 <= value <= 5.0 for value in hysteresis):
             raise ValueError("hysteresis values must be between 0.1 and 5.0 degrees")
-        if not 0 <= self.ac_minimum_off_seconds <= 86_400:
-            raise ValueError("AC minimum-off time must be between 0 and 86400 seconds")
+        for value in (self.minimum_seconds_cooling_on, self.minimum_seconds_cooling_off):
+            if not 0 <= value <= 86_400:
+                raise ValueError("AC protection times must be between 0 and 86400 seconds")
         if not 0 <= self.mode_reversal_guard_seconds <= 86_400:
             raise ValueError("mode reversal guard must be between 0 and 86400 seconds")
         if not 0 <= self.trv_target_offset <= 5.0:
@@ -107,6 +121,10 @@ class RoomConfig:
         """Build settings from Home Assistant config-subentry data."""
         values = dict(data)
         values["temperature_sensor_entity_ids"] = tuple(values["temperature_sensor_entity_ids"])
+        values.setdefault("enable_safe_cooling_delay", True)
+        legacy_minimum_off = values.pop("ac_minimum_off_seconds", 300)
+        values.setdefault("minimum_seconds_cooling_on", legacy_minimum_off)
+        values.setdefault("minimum_seconds_cooling_off", legacy_minimum_off)
         return cls(**values)
 
 

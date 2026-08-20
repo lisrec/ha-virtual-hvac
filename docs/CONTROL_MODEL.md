@@ -117,7 +117,7 @@ A heat/cool reversal and a cooling start may be delayed by the protection rules 
 | Heat | Hysteresis-controlled primary heating; optional boost heat assist. |
 | Cool | AC cool with the virtual target after protection timers. |
 | Dry | AC dry after protection timers; target is not forced. |
-| Fan only | Heater off and AC fan-only; target is not forced. |
+| Fan only | Heater off and AC fan-only; target is not forced and the compressor is treated as inactive. |
 | Auto | Hysteresis-controlled heat, dead band, and cool. |
 
 Only modes supported by configured and currently reported physical outputs are exposed. Automatic mode requires both heating and cooling availability.
@@ -132,11 +132,16 @@ Only modes supported by configured and currently reported physical outputs are e
 
 ## Room protection timers
 
-### AC minimum-off
+### Safe cooling delay
 
-Before cool or dry starts, the AC must have reported off for at least the configured minimum-off interval. If not, output remains off with `ac_minimum_off` and a retry is scheduled for the rounded-up remaining seconds.
+When enabled, safe cooling delay applies both configured intervals:
 
-Elapsed time comes from an integration-owned wall-clock timestamp recorded after a confirmed AC transition to off. It is persisted privately across restart. Missing, corrupt, or future timestamps yield zero elapsed time and therefore the full conservative delay. Missing, unknown, or unavailable AC state also prevents startup arming or yields conservative delay.
+- before cool or dry starts, the compressor must have remained inactive for at least the minimum cooling off interval; both AC off and fan-only count as compressor-inactive states, otherwise output remains off with `ac_minimum_off` and a retry is scheduled;
+- when automatic temperature control would end cooling, cooling remains active until the minimum cooling on interval expires, with `ac_minimum_on` and a retry.
+
+Explicit virtual off, an open or unavailable configured window, invalid temperature input, and heat/cool interlocks remain fail-closed and are not delayed merely to satisfy minimum cooling on time.
+
+Elapsed time comes from an integration-owned wall-clock timestamp recorded after confirmed integration-owned AC active/inactive transitions and persisted privately across restart. Every successful startup neutralization records a fresh conservative off baseline, including when the AC already reports off, so minimum-off can finish without trusting an ambiguous historical transition. Missing, corrupt, or future timestamps otherwise yield zero elapsed time and therefore the full conservative delay. Missing, unknown, or unavailable AC state also prevents startup arming or yields conservative delay. External writers are unsupported and can invalidate timer assumptions.
 
 ### Heat/cool reversal guard
 
@@ -158,7 +163,7 @@ Global heat demand is logical OR across effective room heat demands.
 
 If no shared relay is configured, the aggregate demand remains available for an external controller and shared status is `not_configured`.
 
-With a shared relay:
+With a shared relay and safe heating delay enabled:
 
 - demand true and relay already on → no call, `steady_on`;
 - demand false and relay already off → no call, `steady_off`;
@@ -169,7 +174,9 @@ With a shared relay:
 - relay missing, unknown, or unavailable → no call, `relay_unavailable`;
 - service timeout or missing state acknowledgement → `command_not_confirmed`.
 
-Minimum timing uses an integration-owned timestamp recorded after confirmed relay transitions and persisted privately across restart. Missing, corrupt, or future values apply the full guard. If the unreachable relay was already physically on, `relay_unavailable` cannot make it physically safe.
+When safe heating delay is disabled, an eligible change bypasses both configured heating intervals while retaining availability checks and acknowledged service calls.
+
+Minimum timing uses an integration-owned timestamp recorded after confirmed relay transitions and persisted privately across restart. Every successful startup neutralization records a fresh conservative off baseline, including when the relay already reports off, so the first retry can finish without trusting an ambiguous historical transition. Missing, corrupt, or future values apply the full guard. If the unreachable relay was already physically on, `relay_unavailable` cannot make it physically safe.
 
 ## Status reason reference
 
@@ -177,7 +184,7 @@ Common room status values include:
 
 - normal selection: `explicit_cool`, `explicit_dry`, `explicit_fan_only`, `heat_demand`, `auto_heat`, `auto_cool`, `auto_continue_heat`, `auto_continue_cool`;
 - satisfied or idle: `mode_off`, `heat_target_satisfied`, `auto_dead_band`;
-- startup, shutdown, or interlock: `startup_disarmed`, `startup_inputs_not_authoritative`, `startup_neutralization_failed`, `shutdown_neutralized`, `no_valid_temperature`, `invalid_target`, `window_open`, `window_unavailable`, `ac_minimum_off`, `mode_reversal_guard`;
-- output fault: `ac_stop_not_confirmed`, `ac_stop_or_start_not_confirmed`, `heater_start_not_confirmed`, `heater_stop_not_confirmed`, `neutralization_not_confirmed`, `preset_output_not_confirmed`, `stale_command_neutralization_failed`, `service_call_failed`.
+- startup, shutdown, or interlock: `startup_disarmed`, `startup_inputs_not_authoritative`, `startup_neutralization_failed`, `shutdown_neutralized`, `no_valid_temperature`, `invalid_target`, `window_open`, `window_unavailable`, `ac_minimum_on`, `ac_minimum_off`, `mode_reversal_guard`;
+- output fault: `ac_heat_assist_not_confirmed`, `ac_stop_not_confirmed`, `ac_stop_or_start_not_confirmed`, `heater_start_not_confirmed`, `heater_stop_not_confirmed`, `neutralization_not_confirmed`, `preset_output_not_confirmed`, `stale_command_neutralization_failed`, `service_call_failed`.
 
 Unknown arbitrary text is not included in downloadable diagnostics.

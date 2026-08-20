@@ -13,7 +13,13 @@ from homeassistant.const import STATE_OFF, STATE_ON, STATE_UNAVAILABLE
 from homeassistant.util.dt import utcnow
 
 from custom_components.virtual_hvac.actuators import ActuationResult
-from custom_components.virtual_hvac.control import ControlDecision, OutputMode, Preset, VirtualMode
+from custom_components.virtual_hvac.control import (
+    ControlDecision,
+    ControlMemory,
+    OutputMode,
+    Preset,
+    VirtualMode,
+)
 from custom_components.virtual_hvac.models import ControllerConfig, RoomConfig
 from custom_components.virtual_hvac.protection import ProtectionTimestamps
 from custom_components.virtual_hvac.runtime import ControllerRuntime, RoomRuntime
@@ -28,7 +34,8 @@ def room_config(**overrides: object) -> RoomConfig:
         "window_entity_id": "binary_sensor.window",
         "rapid_entity_id": "switch.rapid",
         "silent_entity_id": "switch.silent",
-        "ac_minimum_off_seconds": 0,
+        "minimum_seconds_cooling_on": 0,
+        "minimum_seconds_cooling_off": 0,
         "mode_reversal_guard_seconds": 0,
     }
     values.update(overrides)
@@ -384,8 +391,8 @@ def make_controller(hass, *, shared: bool = True) -> ControllerRuntime:
         ControllerConfig(
             name="Controller",
             shared_heat_source_entity_id="switch.shared" if shared else None,
-            shared_minimum_on_seconds=0,
-            shared_minimum_off_seconds=0,
+            minimum_seconds_heating_on=0,
+            minimum_seconds_heating_off=0,
         ),
         {},
     )
@@ -579,3 +586,107 @@ async def test_shared_retry_and_listener_removal(hass, monkeypatch) -> None:
     runtime._async_shared_retry(utcnow())
     await hass.async_block_till_done()
     evaluate.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_shared_retry_turns_on_after_first_start_with_relay_already_off(
+    hass, monkeypatch
+) -> None:
+    started = utcnow()
+    runtime = ControllerRuntime(
+        hass,
+        "entry-id",
+        ControllerConfig(
+            name="Controller",
+            shared_heat_source_entity_id="switch.shared",
+            minimum_seconds_heating_on=12,
+            minimum_seconds_heating_off=12,
+        ),
+        {},
+    )
+    hass.states.async_set("switch.shared", STATE_OFF)
+    runtime.rooms = {"room": SimpleNamespace(heat_demand=True)}
+    confirmed = AsyncMock(return_value=True)
+    monkeypatch.setattr(
+        "custom_components.virtual_hvac.runtime.async_set_switch_confirmed", confirmed
+    )
+    monkeypatch.setattr("custom_components.virtual_hvac.runtime.utcnow", lambda: started)
+
+    assert await runtime._async_neutralize_shared("startup")
+    runtime._startup_complete = True
+    await runtime.async_evaluate_shared_heat_source()
+    assert runtime.shared_status == "minimum_off"
+
+    runtime._cancel_shared_retry()
+    monkeypatch.setattr(
+        "custom_components.virtual_hvac.runtime.utcnow", lambda: started + timedelta(seconds=13)
+    )
+    runtime._async_shared_retry(started + timedelta(seconds=13))
+    await hass.async_block_till_done()
+
+    assert runtime.shared_status == "turn_on"
+    assert confirmed.await_args_list[-1].args == (hass, "switch.shared", True)
+
+
+@pytest.mark.asyncio
+async def test_fan_only_must_wait_for_cooling_minimum_off_before_cool(hass, monkeypatch) -> None:
+    now = utcnow()
+    set_authoritative_states(hass)
+    hass.states.async_set(
+        "climate.ac",
+        HVACMode.FAN_ONLY,
+        {"hvac_modes": [HVACMode.OFF, HVACMode.COOL, HVACMode.FAN_ONLY]},
+    )
+    room = make_room(
+        hass,
+        enable_safe_cooling_delay=True,
+        minimum_seconds_cooling_off=300,
+    )
+    room._ready = True
+    room.mode = VirtualMode.COOL
+    room._timestamps.record(room._ac_timestamp_key, now - timedelta(seconds=10))
+    monkeypatch.setattr("custom_components.virtual_hvac.runtime.utcnow", lambda: now)
+    monkeypatch.setattr(
+        room._actuators, "async_apply", AsyncMock(return_value=ActuationResult(True))
+    )
+
+    await room.async_evaluate()
+    room._cancel_retry_timer()
+
+    assert not room._physical_ac_active()
+    assert room.decision.output_mode is OutputMode.OFF
+    assert room.status == "ac_minimum_off"
+
+
+@pytest.mark.asyncio
+async def test_cooling_minimum_on_does_not_restart_compressor_from_fan_only(
+    hass, monkeypatch
+) -> None:
+    now = utcnow()
+    set_authoritative_states(hass)
+    hass.states.async_set("sensor.temperature", "21.6", {"unit_of_measurement": "°C"})
+    hass.states.async_set(
+        "climate.ac",
+        HVACMode.FAN_ONLY,
+        {"hvac_modes": [HVACMode.OFF, HVACMode.COOL, HVACMode.FAN_ONLY]},
+    )
+    room = make_room(
+        hass,
+        enable_safe_cooling_delay=True,
+        minimum_seconds_cooling_on=300,
+    )
+    room._ready = True
+    room.mode = VirtualMode.AUTO
+    room.target_temperature = 22.0
+    room._memory = ControlMemory(last_output_mode=OutputMode.COOL)
+    room._timestamps.record(room._ac_timestamp_key, now - timedelta(seconds=10))
+    monkeypatch.setattr("custom_components.virtual_hvac.runtime.utcnow", lambda: now)
+    monkeypatch.setattr(
+        room._actuators, "async_apply", AsyncMock(return_value=ActuationResult(True))
+    )
+
+    await room.async_evaluate()
+    room._cancel_retry_timer()
+
+    assert room.decision.output_mode is OutputMode.OFF
+    assert room.status == "auto_dead_band"

@@ -12,8 +12,32 @@ from custom_components.virtual_hvac.models import (
 def test_controller_defaults_are_safe() -> None:
     config = ControllerConfig(name="Virtual HVAC")
     assert config.shared_heat_source_entity_id is None
-    assert config.shared_minimum_on_seconds == 300
-    assert config.shared_minimum_off_seconds == 180
+    assert config.enable_safe_heating_delay is True
+    assert config.minimum_seconds_heating_on == 300
+    assert config.minimum_seconds_heating_off == 180
+
+
+def test_room_cooling_delay_defaults_are_safe() -> None:
+    config = RoomConfig(
+        name="Room",
+        temperature_sensor_entity_ids=("sensor.temperature",),
+        ac_entity_id="climate.ac",
+    )
+    assert config.enable_safe_cooling_delay is True
+    assert config.minimum_seconds_cooling_on == 300
+    assert config.minimum_seconds_cooling_off == 300
+
+
+def test_protection_flags_must_be_boolean() -> None:
+    with pytest.raises(ValueError, match="heating delay flag"):
+        ControllerConfig(name="Controller", enable_safe_heating_delay="yes")  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="cooling delay flag"):
+        RoomConfig(
+            name="Room",
+            temperature_sensor_entity_ids=("sensor.temperature",),
+            heater_entity_id="switch.heater",
+            enable_safe_cooling_delay="yes",  # type: ignore[arg-type]
+        )
 
 
 def test_room_requires_at_least_one_temperature_sensor() -> None:
@@ -135,7 +159,9 @@ def test_room_configuration_round_trips_through_mapping() -> None:
         heating_hysteresis_off=0.3,
         cooling_hysteresis_on=0.6,
         cooling_hysteresis_off=0.4,
-        ac_minimum_off_seconds=240,
+        enable_safe_cooling_delay=False,
+        minimum_seconds_cooling_on=180,
+        minimum_seconds_cooling_off=240,
         mode_reversal_guard_seconds=360,
         trv_target_offset=1.5,
         boost_ac_heat_assist=True,

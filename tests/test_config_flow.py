@@ -13,8 +13,9 @@ from custom_components.virtual_hvac.const import DOMAIN, SUBENTRY_ROOM
 
 CONTROLLER_DATA = {
     "name": "Virtual HVAC",
-    "shared_minimum_on_seconds": 300,
-    "shared_minimum_off_seconds": 180,
+    "enable_safe_heating_delay": True,
+    "minimum_seconds_heating_on": 300,
+    "minimum_seconds_heating_off": 180,
 }
 ROOM_DATA = {
     "name": "Test room",
@@ -25,7 +26,9 @@ ROOM_DATA = {
     "heating_hysteresis_off": 0.3,
     "cooling_hysteresis_on": 0.5,
     "cooling_hysteresis_off": 0.3,
-    "ac_minimum_off_seconds": 300,
+    "enable_safe_cooling_delay": True,
+    "minimum_seconds_cooling_on": 300,
+    "minimum_seconds_cooling_off": 300,
     "mode_reversal_guard_seconds": 300,
     "trv_target_offset": 1.0,
     "boost_ac_heat_assist": False,
@@ -48,11 +51,17 @@ async def test_user_flow_creates_single_controller(hass) -> None:
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
     assert result["type"] is FlowResultType.FORM
+    controller_fields = [key.schema for key in result["data_schema"].schema]
+    assert controller_fields[-3:] == [
+        "enable_safe_heating_delay",
+        "minimum_seconds_heating_on",
+        "minimum_seconds_heating_off",
+    ]
 
     result = await hass.config_entries.flow.async_configure(result["flow_id"], CONTROLLER_DATA)
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["title"] == "Virtual HVAC"
-    assert result["data"]["shared_minimum_on_seconds"] == 300
+    assert result["data"]["minimum_seconds_heating_on"] == 300
 
     entry = MockConfigEntry(domain=DOMAIN, title="Virtual HVAC", data=CONTROLLER_DATA)
     entry.add_to_hass(hass)
@@ -74,6 +83,13 @@ async def test_room_subentry_flow_creates_room(hass) -> None:
         context={"source": config_entries.SOURCE_USER},
     )
     assert result["type"] is FlowResultType.FORM
+    room_fields = [key.schema for key in result["data_schema"].schema]
+    cooling_index = room_fields.index("enable_safe_cooling_delay")
+    assert room_fields[cooling_index : cooling_index + 3] == [
+        "enable_safe_cooling_delay",
+        "minimum_seconds_cooling_on",
+        "minimum_seconds_cooling_off",
+    ]
 
     result = await hass.config_entries.subentries.async_configure(result["flow_id"], ROOM_DATA)
     assert result["type"] is FlowResultType.CREATE_ENTRY

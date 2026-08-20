@@ -47,7 +47,7 @@ Home Assistant associates room entities and room devices with their owning confi
 
 ### Side-effect adapter
 
-`ActuatorAdapter` converts a decision to bounded Home Assistant service calls and requires reported state acknowledgement. It avoids calls when reported state already matches the request. For a cooling path, it confirms the heater off before requesting the AC mode. For a heating path, it confirms the AC off before enabling the primary heater, except that explicitly configured boost heat assist may use both as heating outputs.
+`ActuatorAdapter` converts a decision to bounded Home Assistant service calls and requires reported state acknowledgement. It avoids calls when reported state already matches the request. For a cooling path, it confirms the heater off before requesting the AC mode. For every heating path, including boost heat assist, it first confirms AC off, then enables the primary heater, and only then may request AC heat. A failed heat-assist request triggers fail-closed neutralization and is never reported as successful.
 
 A reported Home Assistant state acknowledgement does not prove physical movement. Deployment must provide independent mechanical acknowledgement or physical protection where required.
 
@@ -115,7 +115,7 @@ Use a manufacturer-approved bypass, a permanently available circuit, a proven va
 
 ## Protection timing
 
-Confirmed shared-relay, AC, and room output-path transitions are recorded as integration-owned wall-clock timestamps in private Home Assistant storage. The records survive restart. Missing, corrupt, or future timestamps produce zero elapsed time, which conservatively applies the full guard interval. The current authoritative physical state is reconciled during the startup barrier before restored intent is armed.
+Confirmed integration-owned shared-relay, AC, and room output-path transitions are recorded as wall-clock timestamps in private Home Assistant storage. The records survive restart. Missing, corrupt, or future timestamps produce zero elapsed time, which conservatively applies the full guard interval. Startup records fresh off baselines before restored intent is armed. External writers are unsupported and may invalidate timer assumptions, so every physical output must remain exclusively owned by Virtual HVAC while it is active.
 
 See [CONTROL_MODEL.md](CONTROL_MODEL.md) for exact threshold and timer behavior.
 

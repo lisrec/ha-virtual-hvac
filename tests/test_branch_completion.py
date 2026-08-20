@@ -35,7 +35,7 @@ def room_config(**overrides: object) -> RoomConfig:
     ("kwargs", "message"),
     [
         ({"name": "   "}, "controller name"),
-        ({"name": "Controller", "shared_minimum_on_seconds": -1}, "protection times"),
+        ({"name": "Controller", "minimum_seconds_heating_on": -1}, "protection times"),
     ],
 )
 def test_controller_rejects_empty_name_and_out_of_range_protection(
@@ -49,7 +49,7 @@ def test_controller_rejects_empty_name_and_out_of_range_protection(
     ("overrides", "message"),
     [
         ({"name": "  "}, "room name"),
-        ({"ac_minimum_off_seconds": -1}, "minimum-off"),
+        ({"minimum_seconds_cooling_off": -1}, "protection times"),
         ({"mode_reversal_guard_seconds": 86_401}, "reversal guard"),
         ({"trv_target_offset": 5.1}, "TRV target offset"),
     ],

@@ -132,7 +132,7 @@ class ActuatorAdapter:
                     await self.async_neutralize(target_temperature)
                     return ActuationResult(False, "ac_stop_or_start_not_confirmed")
             elif output in (OutputMode.HEAT, OutputMode.HEAT_ASSIST):
-                if output is OutputMode.HEAT and not await self._async_set_ac(HVACMode.OFF, None):
+                if not await self._async_set_ac(HVACMode.OFF, None):
                     return ActuationResult(False, "ac_stop_not_confirmed")
                 if not await self._async_set_heater(True, target_temperature):
                     await self.async_neutralize(target_temperature)
@@ -140,8 +140,8 @@ class ActuatorAdapter:
                 if output is OutputMode.HEAT_ASSIST and not await self._async_set_ac(
                     HVACMode.HEAT, decision.ac_target_temperature
                 ):
-                    # Heat assist is optional; keep only the confirmed primary heater.
-                    await self._async_set_ac(HVACMode.OFF, None)
+                    await self.async_neutralize(target_temperature)
+                    return ActuationResult(False, "ac_heat_assist_not_confirmed")
             elif not (await self.async_neutralize(target_temperature)).success:
                 return ActuationResult(False, "neutralization_not_confirmed")
 

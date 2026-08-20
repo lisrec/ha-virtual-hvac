@@ -36,3 +36,22 @@ def test_unavailable_relay_never_produces_action() -> None:
 def test_steady_states_are_idempotent() -> None:
     assert decide_heat_source(True, True, 1000, 300, 180).action is None
     assert decide_heat_source(False, False, 1000, 300, 180).action is None
+
+
+def test_disabled_safe_heating_delay_bypasses_minimum_times() -> None:
+    assert decide_heat_source(
+        True,
+        False,
+        0,
+        300,
+        180,
+        safe_delay_enabled=False,
+    ) == HeatSourceDecision(action=True, reason="turn_on")
+    assert decide_heat_source(
+        False,
+        True,
+        0,
+        300,
+        180,
+        safe_delay_enabled=False,
+    ) == HeatSourceDecision(action=False, reason="turn_off")

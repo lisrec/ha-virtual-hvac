@@ -6,6 +6,18 @@ Migrate from an existing HVAC control arrangement without allowing two controlle
 
 Virtual HVAC has an internal startup-disarmed barrier but no user-selectable long-running shadow mode. A safe migration therefore uses non-physical test outputs for shadow observation and a separate, vendor-approved physical isolation step for first commissioning.
 
+## Upgrade from 0.1.x to 0.2.0
+
+Home Assistant migrates protection settings before setup:
+
+- legacy shared minimum-on and minimum-off values become minimum heating on and off values;
+- safe heating delay is enabled;
+- the legacy AC minimum-off value becomes the initial minimum cooling on and off value;
+- safe cooling delay is enabled;
+- room identifiers, output ownership, targets, modes, and presets are unchanged.
+
+After upgrading, review both checkboxes and all four intervals before enabling a room. Rollback to 0.1.x requires restoring a pre-upgrade Home Assistant backup because 0.1.x does not understand the new configuration keys.
+
 ## Phase 0: establish the safety boundary
 
 Before changing Home Assistant:

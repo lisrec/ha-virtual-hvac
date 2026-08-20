@@ -59,6 +59,7 @@ class ControlInput:
     window_open: bool | None
     ac_off_elapsed_seconds: float
     mode_elapsed_seconds: float
+    ac_on_elapsed_seconds: float = math.inf
 
 
 @dataclass(frozen=True, slots=True)
@@ -211,6 +212,21 @@ class RoomController:
                 silent,
                 "auto_continue_cool",
             )
+        elif (
+            memory.last_output_mode is OutputMode.COOL
+            and self._config.enable_safe_cooling_delay
+            and inputs.ac_on_elapsed_seconds < self._config.minimum_seconds_cooling_on
+        ):
+            return ControlDecision(
+                OutputMode.COOL,
+                False,
+                False,
+                target,
+                rapid,
+                silent,
+                "ac_minimum_on",
+                math.ceil(self._config.minimum_seconds_cooling_on - inputs.ac_on_elapsed_seconds),
+            )
 
         wants_heat = temperature <= target - self._config.heating_hysteresis_on
         wants_cool = temperature >= target + self._config.cooling_hysteresis_on
@@ -229,7 +245,10 @@ class RoomController:
         if wants_cool:
             if self._is_reversal(memory.last_output_mode, OutputMode.COOL, inputs):
                 return self._protected("mode_reversal_guard", inputs)
-            if inputs.ac_off_elapsed_seconds < self._config.ac_minimum_off_seconds:
+            if (
+                self._config.enable_safe_cooling_delay
+                and inputs.ac_off_elapsed_seconds < self._config.minimum_seconds_cooling_off
+            ):
                 return ControlDecision(
                     OutputMode.OFF,
                     False,
@@ -238,7 +257,9 @@ class RoomController:
                     rapid,
                     silent,
                     "ac_minimum_off",
-                    math.ceil(self._config.ac_minimum_off_seconds - inputs.ac_off_elapsed_seconds),
+                    math.ceil(
+                        self._config.minimum_seconds_cooling_off - inputs.ac_off_elapsed_seconds
+                    ),
                 )
             return ControlDecision(
                 OutputMode.COOL,
@@ -266,7 +287,9 @@ class RoomController:
         )
 
     def _compressor_protection(self, inputs: ControlInput) -> ControlDecision | None:
-        if inputs.ac_off_elapsed_seconds >= self._config.ac_minimum_off_seconds:
+        if not self._config.enable_safe_cooling_delay or (
+            inputs.ac_off_elapsed_seconds >= self._config.minimum_seconds_cooling_off
+        ):
             return None
         return ControlDecision(
             OutputMode.OFF,
@@ -276,7 +299,7 @@ class RoomController:
             False,
             False,
             "ac_minimum_off",
-            math.ceil(self._config.ac_minimum_off_seconds - inputs.ac_off_elapsed_seconds),
+            math.ceil(self._config.minimum_seconds_cooling_off - inputs.ac_off_elapsed_seconds),
         )
 
     def _protected(self, reason: str, inputs: ControlInput) -> ControlDecision:

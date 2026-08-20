@@ -9,7 +9,7 @@ from dataclasses import replace
 from datetime import datetime
 
 from homeassistant.const import STATE_OFF, STATE_ON, STATE_UNAVAILABLE, STATE_UNKNOWN
-from homeassistant.core import Event, EventStateChangedData, HomeAssistant, callback
+from homeassistant.core import Event, EventStateChangedData, HomeAssistant, State, callback
 from homeassistant.helpers.event import async_call_later, async_track_state_change_event
 from homeassistant.util.dt import utcnow
 from homeassistant.util.unit_conversion import TemperatureConverter
@@ -31,6 +31,7 @@ from .temperature import average_valid_temperatures
 
 Listener = Callable[[], None]
 _AC_ACTIVE_MODES = {OutputMode.COOL, OutputMode.DRY, OutputMode.HEAT_ASSIST}
+_AC_COMPRESSOR_INACTIVE_STATES = {STATE_OFF, "fan_only"}
 
 
 class RoomRuntime:
@@ -97,7 +98,6 @@ class RoomRuntime:
     async def async_finish_startup(self) -> bool:
         """Neutralize known outputs, validate live inputs, then arm restored intent."""
         async with self._lock:
-            was_ac_active = self._physical_ac_active()
             self._actuating = True
             try:
                 result = await self._actuators.async_neutralize(self.target_temperature)
@@ -108,7 +108,7 @@ class RoomRuntime:
                 self.decision = replace(self.decision, reason="startup_neutralization_failed")
                 self._publish()
                 return False
-            if was_ac_active:
+            if self.config.ac_entity_id is not None:
                 self._timestamps.record(self._ac_timestamp_key)
             self._timestamps.record(self._output_timestamp_key)
             if not await self._inputs_authoritative():
@@ -325,6 +325,7 @@ class RoomRuntime:
                 window_open=self._window_open(),
                 ac_off_elapsed_seconds=self._ac_off_elapsed(now),
                 mode_elapsed_seconds=self._timestamps.elapsed(self._output_timestamp_key, now),
+                ac_on_elapsed_seconds=self._ac_on_elapsed(now),
             ),
             self._memory,
         )
@@ -357,7 +358,7 @@ class RoomRuntime:
             self.physical_status = "outputs_confirmed"
         if decision.output_mode != previous_output:
             self._timestamps.record(self._output_timestamp_key, now)
-            if previous_output in _AC_ACTIVE_MODES and decision.output_mode not in _AC_ACTIVE_MODES:
+            if (previous_output in _AC_ACTIVE_MODES) != (decision.output_mode in _AC_ACTIVE_MODES):
                 self._timestamps.record(self._ac_timestamp_key, now)
         last_active = self._memory.last_output_mode
         if decision.output_mode is not OutputMode.OFF:
@@ -397,11 +398,13 @@ class RoomRuntime:
     def _physical_ac_active(self) -> bool:
         entity_id = self.config.ac_entity_id
         state = self.hass.states.get(entity_id) if entity_id is not None else None
-        return state is not None and state.state not in (
-            STATE_OFF,
-            STATE_UNKNOWN,
-            STATE_UNAVAILABLE,
-        )
+        return self._ac_compressor_active(state) is True
+
+    @staticmethod
+    def _ac_compressor_active(state: State | None) -> bool | None:
+        if state is None or state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE):
+            return None
+        return state.state not in _AC_COMPRESSOR_INACTIVE_STATES
 
     def _physical_outputs_match_decision(self) -> bool:
         """Ignore delayed acknowledgements but reconcile external output drift."""
@@ -444,9 +447,22 @@ class RoomRuntime:
         if entity_id is None:
             return math.inf
         state = self.hass.states.get(entity_id)
-        if state is None or state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE):
+        compressor_active = self._ac_compressor_active(state)
+        if compressor_active is None:
             return 0.0
-        if state.state != STATE_OFF:
+        if compressor_active:
+            return math.inf
+        return self._timestamps.elapsed(self._ac_timestamp_key, now)
+
+    def _ac_on_elapsed(self, now: datetime) -> float:
+        entity_id = self.config.ac_entity_id
+        if entity_id is None:
+            return math.inf
+        state = self.hass.states.get(entity_id)
+        compressor_active = self._ac_compressor_active(state)
+        if compressor_active is None:
+            return 0.0
+        if not compressor_active:
             return math.inf
         return self._timestamps.elapsed(self._ac_timestamp_key, now)
 
@@ -576,14 +592,12 @@ class ControllerRuntime:
                 self.shared_physical_status = "physical_state_unknown"
                 self._notify()
                 return False
-            was_on = state.state == STATE_ON
             if not await async_set_switch_confirmed(self.hass, entity_id, False):
                 self.shared_status = f"{phase}_neutralization_failed"
                 self.shared_physical_status = "physical_off_not_confirmed"
                 self._notify()
                 return False
-            if was_on:
-                self._timestamps.record(self._shared_timestamp_key)
+            self._timestamps.record(self._shared_timestamp_key)
             self.shared_status = f"{phase}_neutralized"
             self.shared_physical_status = "physical_off_confirmed"
         self._notify()
@@ -650,8 +664,9 @@ class ControllerRuntime:
                     self.aggregate_heat_demand,
                     relay_state,
                     elapsed,
-                    self.config.shared_minimum_on_seconds,
-                    self.config.shared_minimum_off_seconds,
+                    self.config.minimum_seconds_heating_on,
+                    self.config.minimum_seconds_heating_off,
+                    safe_delay_enabled=self.config.enable_safe_heating_delay,
                 )
                 self.shared_status = decision.reason
                 if relay_state is None:
