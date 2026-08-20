@@ -1,0 +1,12 @@
+{
+  "domain": "virtual_hvac",
+  "name": "Virtual HVAC",
+  "codeowners": ["@lisrec"],
+  "config_flow": true,
+  "documentation": "https://github.com/lisrec/ha-virtual-hvac",
+  "integration_type": "service",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/lisrec/ha-virtual-hvac/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}

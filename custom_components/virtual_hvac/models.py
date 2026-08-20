@@ -1,0 +1,126 @@
+"""Validated immutable configuration models for Virtual HVAC."""
+
+from __future__ import annotations
+
+from dataclasses import asdict, dataclass
+from typing import Any, Self
+
+
+@dataclass(frozen=True, slots=True)
+class ControllerConfig:
+    """Global controller settings shared by every room."""
+
+    name: str
+    shared_heat_source_entity_id: str | None = None
+    shared_minimum_on_seconds: int = 300
+    shared_minimum_off_seconds: int = 180
+
+    def __post_init__(self) -> None:
+        if not self.name.strip():
+            raise ValueError("controller name must not be empty")
+        for value in (self.shared_minimum_on_seconds, self.shared_minimum_off_seconds):
+            if not 0 <= value <= 86_400:
+                raise ValueError("shared protection times must be between 0 and 86400 seconds")
+
+    def to_mapping(self) -> dict[str, Any]:
+        """Return a storage-safe mapping."""
+        return asdict(self)
+
+    @classmethod
+    def from_mapping(cls, data: dict[str, Any]) -> Self:
+        """Build settings from Home Assistant config-entry data."""
+        return cls(**data)
+
+
+@dataclass(frozen=True, slots=True)
+class RoomConfig:
+    """Validated settings for one room subentry."""
+
+    name: str
+    temperature_sensor_entity_ids: tuple[str, ...]
+    ac_entity_id: str | None = None
+    heater_entity_id: str | None = None
+    window_entity_id: str | None = None
+    rapid_entity_id: str | None = None
+    silent_entity_id: str | None = None
+    heating_hysteresis_on: float = 0.5
+    heating_hysteresis_off: float = 0.3
+    cooling_hysteresis_on: float = 0.5
+    cooling_hysteresis_off: float = 0.3
+    ac_minimum_off_seconds: int = 300
+    mode_reversal_guard_seconds: int = 300
+    trv_target_offset: float = 1.0
+    boost_ac_heat_assist: bool = False
+    temperature_sensor_max_age_seconds: int | None = 300
+
+    def __post_init__(self) -> None:
+        if not self.name.strip():
+            raise ValueError("room name must not be empty")
+        if not self.temperature_sensor_entity_ids:
+            raise ValueError("at least one temperature sensor is required")
+        if len(set(self.temperature_sensor_entity_ids)) != len(self.temperature_sensor_entity_ids):
+            raise ValueError("duplicate temperature sensor entities are not allowed")
+        if self.ac_entity_id is None and self.heater_entity_id is None:
+            raise ValueError("at least one HVAC actuator is required")
+        outputs = self.output_entity_ids()
+        if len(outputs) != len(set(outputs)):
+            raise ValueError("all configured output roles must be distinct")
+        hysteresis = (
+            self.heating_hysteresis_on,
+            self.heating_hysteresis_off,
+            self.cooling_hysteresis_on,
+            self.cooling_hysteresis_off,
+        )
+        if any(not 0.1 <= value <= 5.0 for value in hysteresis):
+            raise ValueError("hysteresis values must be between 0.1 and 5.0 degrees")
+        if not 0 <= self.ac_minimum_off_seconds <= 86_400:
+            raise ValueError("AC minimum-off time must be between 0 and 86400 seconds")
+        if not 0 <= self.mode_reversal_guard_seconds <= 86_400:
+            raise ValueError("mode reversal guard must be between 0 and 86400 seconds")
+        if not 0 <= self.trv_target_offset <= 5.0:
+            raise ValueError("TRV target offset must be between 0 and 5.0 degrees")
+        if (
+            self.temperature_sensor_max_age_seconds is not None
+            and not 1 <= self.temperature_sensor_max_age_seconds <= 604_800
+        ):
+            raise ValueError("temperature sensor freshness must be between 1 and 604800 seconds")
+
+    def output_entity_ids(self) -> tuple[str, ...]:
+        """Return every physical entity written by this room."""
+        return tuple(
+            entity_id
+            for entity_id in (
+                self.ac_entity_id,
+                self.heater_entity_id,
+                self.rapid_entity_id,
+                self.silent_entity_id,
+            )
+            if entity_id is not None
+        )
+
+    def to_mapping(self) -> dict[str, Any]:
+        """Return a storage-safe mapping."""
+        return asdict(self)
+
+    @classmethod
+    def from_mapping(cls, data: dict[str, Any]) -> Self:
+        """Build settings from Home Assistant config-subentry data."""
+        values = dict(data)
+        values["temperature_sensor_entity_ids"] = tuple(values["temperature_sensor_entity_ids"])
+        return cls(**values)
+
+
+def validate_output_ownership(controller: ControllerConfig, rooms: dict[str, RoomConfig]) -> None:
+    """Reject duplicate writers across the shared source and every room output role."""
+    owners: dict[str, str] = {}
+    shared = controller.shared_heat_source_entity_id
+    if shared is not None:
+        owners[shared] = "controller.shared_heat_source"
+    for subentry_id, room in rooms.items():
+        for entity_id in room.output_entity_ids():
+            if previous := owners.get(entity_id):
+                raise ValueError(
+                    f"{entity_id} is assigned to multiple output roles: "
+                    f"{previous} and room.{subentry_id}"
+                )
+            owners[entity_id] = f"room.{subentry_id}"

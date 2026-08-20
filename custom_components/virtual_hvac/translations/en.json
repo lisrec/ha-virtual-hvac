@@ -1,0 +1,146 @@
+{
+  "config": {
+    "abort": {
+      "reconfigure_successful": "Controller settings updated successfully.",
+      "single_instance_allowed": "Only one Virtual HVAC controller can be configured."
+    },
+    "error": {
+      "actuator_already_assigned": "An output is already assigned elsewhere in this controller. Every physical output must have only one Virtual HVAC owner, and the shared heat-source relay cannot be used for a room output.",
+      "invalid_controller_config": "The controller settings are invalid. Check the relay and protection times.",
+      "invalid_room_config": "The room settings are invalid. Select at least one temperature sensor and at least one heating or cooling output, then check all ranges.",
+      "invalid_temperature_sensor": "Every selected temperature source must exist and report a temperature device class or temperature unit."
+    },
+    "step": {
+      "reconfigure": {
+        "data": {
+          "name": "Controller name",
+          "shared_heat_source_entity_id": "Shared heat-demand relay",
+          "shared_minimum_off_seconds": "Shared minimum-off time",
+          "shared_minimum_on_seconds": "Shared minimum-on time"
+        },
+        "data_description": {
+          "name": "A display name for this Virtual HVAC controller.",
+          "shared_heat_source_entity_id": "Optional normally-open, low-voltage heat-demand relay. Never select boiler mains power or domestic-hot-water power.",
+          "shared_minimum_off_seconds": "Seconds the shared relay must remain off before another on request is allowed.",
+          "shared_minimum_on_seconds": "Seconds the shared relay must remain on before an off request is allowed."
+        },
+        "description": "Update global settings. Back up Home Assistant before changing output ownership. Ensure no automation, script, dashboard, voice assistant, or other controller writes to the selected relay.",
+        "title": "Reconfigure Virtual HVAC"
+      },
+      "user": {
+        "data": {
+          "name": "Controller name",
+          "shared_heat_source_entity_id": "Shared heat-demand relay",
+          "shared_minimum_off_seconds": "Shared minimum-off time",
+          "shared_minimum_on_seconds": "Shared minimum-on time"
+        },
+        "data_description": {
+          "name": "A display name for this Virtual HVAC controller.",
+          "shared_heat_source_entity_id": "Optional normally-open, low-voltage heat-demand relay. Never select boiler mains power or domestic-hot-water power.",
+          "shared_minimum_off_seconds": "Seconds the shared relay must remain off before another on request is allowed.",
+          "shared_minimum_on_seconds": "Seconds the shared relay must remain on before an off request is allowed."
+        },
+        "description": "Create the single controller. Read the safety, configuration, and migration documentation before assigning physical outputs.",
+        "title": "Set up Virtual HVAC"
+      }
+    }
+  },
+  "config_subentries": {
+    "room": {
+      "abort": {
+        "reconfigure_successful": "Room settings updated successfully."
+      },
+      "entry_type": "Room",
+      "error": {
+        "actuator_already_assigned": "An output is already assigned elsewhere in this controller. Every physical output must have only one Virtual HVAC owner, and the shared heat-source relay cannot be used for a room output.",
+        "invalid_room_config": "The room settings are invalid. Select at least one temperature sensor and at least one heating or cooling output, then check all ranges.",
+        "invalid_temperature_sensor": "Every selected temperature source must exist and report a temperature device class or temperature unit."
+      },
+      "initiate_flow": {
+        "user": "Add room"
+      },
+      "step": {
+        "reconfigure": {
+          "data": {
+            "ac_entity_id": "Air-conditioning climate output",
+            "ac_minimum_off_seconds": "Air conditioner minimum-off time",
+            "boost_ac_heat_assist": "Allow air conditioner heat assist in boost",
+            "cooling_hysteresis_off": "Cooling stop offset",
+            "cooling_hysteresis_on": "Cooling start offset",
+            "heater_entity_id": "Heater or TRV output",
+            "heating_hysteresis_off": "Heating stop offset",
+            "heating_hysteresis_on": "Heating start offset",
+            "mode_reversal_guard_seconds": "Heat/cool reversal guard",
+            "name": "Room name",
+            "rapid_entity_id": "Rapid-mode switch",
+            "silent_entity_id": "Silent-mode switch",
+            "temperature_sensor_entity_ids": "Temperature sensors",
+            "temperature_sensor_max_age_seconds": "Temperature reading maximum age",
+            "trv_target_offset": "TRV target offset",
+            "window_entity_id": "Window sensor"
+          },
+          "data_description": {
+            "ac_entity_id": "Optional climate entity used for supported cooling, dry, fan-only, and heat-assist modes.",
+            "ac_minimum_off_seconds": "Seconds the air conditioner must remain off before a cooling or dry request may start it.",
+            "boost_ac_heat_assist": "When enabled, the boost preset may request AC heating alongside the primary room heater. Enable only after verifying the equipment supports heating.",
+            "cooling_hysteresis_off": "While cooling, stop after temperature falls below the target by this offset.",
+            "cooling_hysteresis_on": "Start cooling when temperature reaches the target plus this offset.",
+            "heater_entity_id": "Optional heating climate entity, TRV, or switch. Verify the actuator can be turned off and is ready before relying on shared heat demand.",
+            "heating_hysteresis_off": "While heating, stop after temperature reaches the target plus this offset.",
+            "heating_hysteresis_on": "Start heating when temperature reaches the target minus this offset.",
+            "mode_reversal_guard_seconds": "Seconds that must pass before changing between heating and cooling paths.",
+            "name": "A display name for this room subentry.",
+            "rapid_entity_id": "Optional switch enabled by the boost preset while an HVAC path is active.",
+            "silent_entity_id": "Optional switch enabled by the sleep preset while an HVAC path is active.",
+            "temperature_sensor_entity_ids": "One or more temperature entities. Valid fresh readings are converted to Celsius and averaged.",
+            "temperature_sensor_max_age_seconds": "Maximum reading age in seconds, from 1 to 604800. The default is 300 seconds.",
+            "trv_target_offset": "Degrees added to the virtual target sent to a heating climate entity or TRV.",
+            "window_entity_id": "Optional binary sensor. Open, unknown, or unavailable suppresses room outputs."
+          },
+          "description": "Update one room. Use outputs dedicated to this controller and remove competing writers before arming it. Confirm TRV readiness and provide a hydraulic bypass or equivalent safe flow path where the heating system requires one.",
+          "title": "Reconfigure room"
+        },
+        "user": {
+          "data": {
+            "ac_entity_id": "Air-conditioning climate output",
+            "ac_minimum_off_seconds": "Air conditioner minimum-off time",
+            "boost_ac_heat_assist": "Allow air conditioner heat assist in boost",
+            "cooling_hysteresis_off": "Cooling stop offset",
+            "cooling_hysteresis_on": "Cooling start offset",
+            "heater_entity_id": "Heater or TRV output",
+            "heating_hysteresis_off": "Heating stop offset",
+            "heating_hysteresis_on": "Heating start offset",
+            "mode_reversal_guard_seconds": "Heat/cool reversal guard",
+            "name": "Room name",
+            "rapid_entity_id": "Rapid-mode switch",
+            "silent_entity_id": "Silent-mode switch",
+            "temperature_sensor_entity_ids": "Temperature sensors",
+            "temperature_sensor_max_age_seconds": "Temperature reading maximum age",
+            "trv_target_offset": "TRV target offset",
+            "window_entity_id": "Window sensor"
+          },
+          "data_description": {
+            "ac_entity_id": "Optional climate entity used for supported cooling, dry, fan-only, and heat-assist modes.",
+            "ac_minimum_off_seconds": "Seconds the air conditioner must remain off before a cooling or dry request may start it.",
+            "boost_ac_heat_assist": "When enabled, the boost preset may request AC heating alongside the primary room heater. Enable only after verifying the equipment supports heating.",
+            "cooling_hysteresis_off": "While cooling, stop after temperature falls below the target by this offset.",
+            "cooling_hysteresis_on": "Start cooling when temperature reaches the target plus this offset.",
+            "heater_entity_id": "Optional heating climate entity, TRV, or switch. Verify the actuator can be turned off and is ready before relying on shared heat demand.",
+            "heating_hysteresis_off": "While heating, stop after temperature reaches the target plus this offset.",
+            "heating_hysteresis_on": "Start heating when temperature reaches the target minus this offset.",
+            "mode_reversal_guard_seconds": "Seconds that must pass before changing between heating and cooling paths.",
+            "name": "A display name for this room subentry.",
+            "rapid_entity_id": "Optional switch enabled by the boost preset while an HVAC path is active.",
+            "silent_entity_id": "Optional switch enabled by the sleep preset while an HVAC path is active.",
+            "temperature_sensor_entity_ids": "One or more temperature entities. Valid fresh readings are converted to Celsius and averaged.",
+            "temperature_sensor_max_age_seconds": "Maximum reading age in seconds, from 1 to 604800. The default is 300 seconds.",
+            "trv_target_offset": "Degrees added to the virtual target sent to a heating climate entity or TRV.",
+            "window_entity_id": "Optional binary sensor. Open, unknown, or unavailable suppresses room outputs."
+          },
+          "description": "Add one room. Use outputs dedicated to this controller and remove competing writers before arming it. Confirm TRV readiness and provide a hydraulic bypass or equivalent safe flow path where the heating system requires one.",
+          "title": "Add room"
+        }
+      }
+    }
+  }
+}
