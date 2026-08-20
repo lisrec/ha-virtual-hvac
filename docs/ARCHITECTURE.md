@@ -68,13 +68,14 @@ This is **integration-local ownership**, not system-wide exclusivity. Home Assis
 
 1. A source state, virtual setting, or protection timer requests room evaluation.
 2. Fresh temperature readings are normalized to Celsius and valid finite values are averaged.
-3. Window state, virtual mode, target, preset, elapsed times, and control memory form a `ControlInput`.
-4. The pure controller returns one mutually exclusive room decision.
-5. The adapter applies that decision in a conservative order.
-6. If required actuation cannot be requested, runtime clears effective demand and requests off outputs.
-7. Room entities publish the effective decision and reason.
-8. The controller computes logical OR over room heat demand.
-9. The shared arbiter applies minimum-on or minimum-off timing and may request the optional relay.
+3. Window inputs are aggregated: any open input wins; otherwise any indeterminate input makes the interlock unavailable; only all-closed is clear.
+4. Aggregated window state, virtual mode, target, preset, elapsed times, and control memory form a `ControlInput`.
+5. The pure controller returns one mutually exclusive room decision.
+6. The adapter applies that decision in a conservative order.
+7. If required actuation cannot be requested, runtime clears effective demand and requests off outputs.
+8. Room entities publish the effective decision and reason.
+9. The controller computes logical OR over room heat demand.
+10. The shared arbiter applies minimum-on or minimum-off timing and may request the optional relay.
 
 ## Startup, restoration, and shutdown
 

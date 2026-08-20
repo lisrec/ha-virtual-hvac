@@ -83,7 +83,7 @@
             "temperature_sensor_entity_ids": "Temperature sensors",
             "temperature_sensor_max_age_seconds": "Temperature reading maximum age",
             "trv_target_offset": "TRV target offset",
-            "window_entity_id": "Window sensor"
+            "window_entity_ids": "Window sensors"
           },
           "data_description": {
             "ac_entity_id": "Optional climate entity used for supported cooling, dry, fan-only, and heat-assist modes.",
@@ -103,7 +103,7 @@
             "temperature_sensor_entity_ids": "One or more temperature entities. Valid fresh readings are converted to Celsius and averaged.",
             "temperature_sensor_max_age_seconds": "Maximum reading age in seconds, from 1 to 604800. The default is 300 seconds.",
             "trv_target_offset": "Degrees added to the virtual target sent to a heating climate entity or TRV.",
-            "window_entity_id": "Optional binary sensor. Open, unknown, or unavailable suppresses room outputs."
+            "window_entity_ids": "Optional one or more binary sensors. Any open sensor suppresses room outputs. If none is open, any unknown, unavailable, missing, or unexpected state also suppresses outputs."
           },
           "description": "Update one room. Use outputs dedicated to this controller and remove competing writers before arming it. Confirm TRV readiness and provide a hydraulic bypass or equivalent safe flow path where the heating system requires one.",
           "title": "Reconfigure room"
@@ -127,7 +127,7 @@
             "temperature_sensor_entity_ids": "Temperature sensors",
             "temperature_sensor_max_age_seconds": "Temperature reading maximum age",
             "trv_target_offset": "TRV target offset",
-            "window_entity_id": "Window sensor"
+            "window_entity_ids": "Window sensors"
           },
           "data_description": {
             "ac_entity_id": "Optional climate entity used for supported cooling, dry, fan-only, and heat-assist modes.",
@@ -147,7 +147,7 @@
             "temperature_sensor_entity_ids": "One or more temperature entities. Valid fresh readings are converted to Celsius and averaged.",
             "temperature_sensor_max_age_seconds": "Maximum reading age in seconds, from 1 to 604800. The default is 300 seconds.",
             "trv_target_offset": "Degrees added to the virtual target sent to a heating climate entity or TRV.",
-            "window_entity_id": "Optional binary sensor. Open, unknown, or unavailable suppresses room outputs."
+            "window_entity_ids": "Optional one or more binary sensors. Any open sensor suppresses room outputs. If none is open, any unknown, unavailable, missing, or unexpected state also suppresses outputs."
           },
           "description": "Add one room. Use outputs dedicated to this controller and remove competing writers before arming it. Confirm TRV readiness and provide a hydraulic bypass or equivalent safe flow path where the heating system requires one.",
           "title": "Add room"

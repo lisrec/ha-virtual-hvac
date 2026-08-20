@@ -12,7 +12,7 @@ Virtual HVAC is a local Home Assistant custom integration that presents one virt
 - Controller-level aggregate heat demand and shared heat-source status entities.
 - Temperature averaging with unit conversion and bounded reading freshness.
 - Heating and cooling hysteresis in automatic mode.
-- Window interlock, optional compressor minimum-on/minimum-off timing, and heat/cool reversal timing.
+- Multi-sensor window interlock, optional compressor minimum-on/minimum-off timing, and heat/cool reversal timing.
 - Comfort, boost, and sleep presets.
 - Optional centralized control of a shared heat-demand relay.
 - Local operation with no cloud service, telemetry, credentials, or remote API.
@@ -48,10 +48,10 @@ These limitations make staged commissioning and independent safety controls mand
 
 ## Installation
 
-This project has not published a stable release. For development or controlled evaluation:
+Install the latest release through HACS as a custom repository or from the GitHub release archive:
 
 1. Back up Home Assistant.
-2. Copy the `virtual_hvac` integration directory into the Home Assistant `custom_components` directory.
+2. Install this repository as a HACS custom integration, or copy the `virtual_hvac` integration directory into Home Assistant's `custom_components` directory.
 3. Restart Home Assistant.
 4. Add **Virtual HVAC** from **Settings → Devices & services**.
 5. Create the controller without a physical shared relay first.

@@ -136,6 +136,58 @@ def test_room_rejects_duplicate_temperature_sensors() -> None:
         )
 
 
+def test_room_accepts_multiple_window_sensors() -> None:
+    config = RoomConfig(
+        name="Room",
+        temperature_sensor_entity_ids=("sensor.temperature",),
+        ac_entity_id="climate.ac",
+        window_entity_ids=("binary_sensor.window_one", "binary_sensor.window_two"),
+    )
+
+    assert config.window_entity_ids == (
+        "binary_sensor.window_one",
+        "binary_sensor.window_two",
+    )
+    assert RoomConfig.from_mapping(config.to_mapping()) == config
+
+
+def test_room_mapping_converts_legacy_window_sensor_to_list() -> None:
+    config = RoomConfig.from_mapping(
+        {
+            "name": "Room",
+            "temperature_sensor_entity_ids": ["sensor.temperature"],
+            "ac_entity_id": "climate.ac",
+            "window_entity_id": "binary_sensor.legacy_window",
+        }
+    )
+
+    assert config.window_entity_ids == ("binary_sensor.legacy_window",)
+    assert "window_entity_id" not in config.to_mapping()
+
+
+def test_room_mapping_ignores_empty_legacy_window_sensor() -> None:
+    config = RoomConfig.from_mapping(
+        {
+            "name": "Room",
+            "temperature_sensor_entity_ids": ["sensor.temperature"],
+            "ac_entity_id": "climate.ac",
+            "window_entity_id": "",
+        }
+    )
+
+    assert config.window_entity_ids == ()
+
+
+def test_room_rejects_duplicate_window_sensors() -> None:
+    with pytest.raises(ValueError, match="duplicate window"):
+        RoomConfig(
+            name="Room",
+            temperature_sensor_entity_ids=("sensor.temperature",),
+            ac_entity_id="climate.ac",
+            window_entity_ids=("binary_sensor.window", "binary_sensor.window"),
+        )
+
+
 def test_room_rejects_unsafe_hysteresis() -> None:
     with pytest.raises(ValueError, match="hysteresis"):
         RoomConfig(
@@ -152,7 +204,7 @@ def test_room_configuration_round_trips_through_mapping() -> None:
         temperature_sensor_entity_ids=("sensor.one", "sensor.two"),
         ac_entity_id="climate.ac",
         heater_entity_id="climate.trv",
-        window_entity_id="binary_sensor.window",
+        window_entity_ids=("binary_sensor.window", "binary_sensor.door"),
         rapid_entity_id="switch.rapid",
         silent_entity_id="switch.silent",
         heating_hysteresis_on=0.4,

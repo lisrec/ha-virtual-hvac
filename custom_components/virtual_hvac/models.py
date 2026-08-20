@@ -49,7 +49,7 @@ class RoomConfig:
     temperature_sensor_entity_ids: tuple[str, ...]
     ac_entity_id: str | None = None
     heater_entity_id: str | None = None
-    window_entity_id: str | None = None
+    window_entity_ids: tuple[str, ...] = ()
     rapid_entity_id: str | None = None
     silent_entity_id: str | None = None
     heating_hysteresis_on: float = 0.5
@@ -73,6 +73,8 @@ class RoomConfig:
             raise ValueError("at least one temperature sensor is required")
         if len(set(self.temperature_sensor_entity_ids)) != len(self.temperature_sensor_entity_ids):
             raise ValueError("duplicate temperature sensor entities are not allowed")
+        if len(set(self.window_entity_ids)) != len(self.window_entity_ids):
+            raise ValueError("duplicate window sensor entities are not allowed")
         if self.ac_entity_id is None and self.heater_entity_id is None:
             raise ValueError("at least one HVAC actuator is required")
         outputs = self.output_entity_ids()
@@ -121,6 +123,11 @@ class RoomConfig:
         """Build settings from Home Assistant config-subentry data."""
         values = dict(data)
         values["temperature_sensor_entity_ids"] = tuple(values["temperature_sensor_entity_ids"])
+        legacy_window = values.pop("window_entity_id", None)
+        if "window_entity_ids" in values:
+            values["window_entity_ids"] = tuple(values["window_entity_ids"])
+        elif legacy_window not in (None, ""):
+            values["window_entity_ids"] = (legacy_window,)
         values.setdefault("enable_safe_cooling_delay", True)
         legacy_minimum_off = values.pop("ac_minimum_off_seconds", 300)
         values.setdefault("minimum_seconds_cooling_on", legacy_minimum_off)

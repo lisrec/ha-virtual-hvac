@@ -6,6 +6,16 @@ Migrate from an existing HVAC control arrangement without allowing two controlle
 
 Virtual HVAC has an internal startup-disarmed barrier but no user-selectable long-running shadow mode. A safe migration therefore uses non-physical test outputs for shadow observation and a separate, vendor-approved physical isolation step for first commissioning.
 
+## Upgrade from 0.2.x to 0.3.0
+
+Home Assistant migrates each room before setup:
+
+- a configured single window sensor becomes a one-item window-sensor list;
+- a room without a window sensor receives an empty list;
+- all room identifiers, outputs, targets, modes, presets, and protection settings are unchanged.
+
+After upgrading, open every room configuration and verify that all intended window sensors are selected. Test each interlock while outputs are safely isolated. Rollback to 0.2.x requires restoring a pre-upgrade Home Assistant backup because 0.2.x does not understand the multi-sensor configuration key.
+
 ## Upgrade from 0.1.x to 0.2.0
 
 Home Assistant migrates protection settings before setup:
