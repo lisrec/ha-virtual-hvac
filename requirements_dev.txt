@@ -3,5 +3,5 @@ pytest-homeassistant-custom-component @ git+https://github.com/MatthewFlamm/pyte
 pytest==9.0.3
 pytest-asyncio==1.4.0
 pytest-cov==7.1.0
-ruff==0.12.9
+ruff==0.16.2
 mypy==1.17.1
