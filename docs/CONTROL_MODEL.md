@@ -79,7 +79,7 @@ Heating requests the primary heater. A heating climate output receives target pl
 
 ## Cooling hysteresis
 
-Cooling hysteresis applies to automatic mode.
+Cooling hysteresis applies to automatic mode and explicit cool mode.
 
 Let `C_on` be cooling start offset and `C_off` be cooling stop offset. Cooling starts when:
 
@@ -93,9 +93,9 @@ Once active, cooling continues while:
 T > S - C_off
 ```
 
-At or below the cooling stop boundary, automatic mode falls into the dead band unless heating is required.
+At or below the cooling stop boundary, the room selects off with `cool_target_satisfied` unless a configured minimum cooling-on interval is still active.
 
-Explicit cool mode requests cooling continuously after common interlocks and protection timers pass. It does not cycle on room hysteresis; the physical AC remains responsible for its own target regulation.
+Explicit cool mode uses the same hysteresis boundaries after common interlocks and protection timers pass. Virtual HVAC remains the sole software writer for the AC output; the physical AC may apply its own internal protections, but it is not responsible for room-temperature cutoff.
 
 ## Automatic mode
 
@@ -183,7 +183,7 @@ Minimum timing uses an integration-owned timestamp recorded after confirmed rela
 Common room status values include:
 
 - normal selection: `explicit_cool`, `explicit_dry`, `explicit_fan_only`, `heat_demand`, `auto_heat`, `auto_cool`, `auto_continue_heat`, `auto_continue_cool`;
-- satisfied or idle: `mode_off`, `heat_target_satisfied`, `auto_dead_band`;
+- satisfied or idle: `cool_target_satisfied`, `mode_off`, `heat_target_satisfied`, `auto_dead_band`;
 - startup, shutdown, or interlock: `startup_disarmed`, `startup_inputs_not_authoritative`, `startup_neutralization_failed`, `shutdown_neutralized`, `no_valid_temperature`, `invalid_target`, `window_open`, `window_unavailable`, `ac_minimum_on`, `ac_minimum_off`, `mode_reversal_guard`;
 - output fault: `ac_heat_assist_not_confirmed`, `ac_stop_not_confirmed`, `ac_stop_or_start_not_confirmed`, `heater_start_not_confirmed`, `heater_stop_not_confirmed`, `neutralization_not_confirmed`, `preset_output_not_confirmed`, `stale_command_neutralization_failed`, `service_call_failed`.
 

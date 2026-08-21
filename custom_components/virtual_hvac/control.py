@@ -46,6 +46,7 @@ class ControlMemory:
 
     last_output_mode: OutputMode = OutputMode.OFF
     heating_active: bool = False
+    cooling_active: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,7 +117,33 @@ class RoomController:
                     return self._off("window_open", rapid=False, silent=False)
 
         if inputs.mode is VirtualMode.COOL:
-            if self._is_reversal(memory.last_output_mode, OutputMode.COOL, inputs):
+            if memory.cooling_active:
+                if inputs.current_temperature <= (
+                    inputs.target_temperature - self._config.cooling_hysteresis_off
+                ):
+                    if (
+                        self._config.enable_safe_cooling_delay
+                        and inputs.ac_on_elapsed_seconds < self._config.minimum_seconds_cooling_on
+                    ):
+                        return ControlDecision(
+                            OutputMode.COOL,
+                            False,
+                            False,
+                            inputs.target_temperature,
+                            rapid,
+                            silent,
+                            "ac_minimum_on",
+                            math.ceil(
+                                self._config.minimum_seconds_cooling_on
+                                - inputs.ac_on_elapsed_seconds
+                            ),
+                        )
+                    return self._off("cool_target_satisfied", rapid=rapid, silent=silent)
+            elif inputs.current_temperature < (
+                inputs.target_temperature + self._config.cooling_hysteresis_on
+            ):
+                return self._off("cool_target_satisfied", rapid=rapid, silent=silent)
+            elif self._is_reversal(memory.last_output_mode, OutputMode.COOL, inputs):
                 return self._protected("mode_reversal_guard", inputs)
             if protected := self._compressor_protection(inputs):
                 return protected

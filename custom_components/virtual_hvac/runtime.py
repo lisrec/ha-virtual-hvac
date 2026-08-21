@@ -387,6 +387,7 @@ class RoomRuntime:
         self._memory = ControlMemory(
             last_output_mode=last_active,
             heating_active=decision.heat_demand,
+            cooling_active=decision.output_mode is OutputMode.COOL,
         )
         self.decision = decision
         if decision.retry_after_seconds is not None:

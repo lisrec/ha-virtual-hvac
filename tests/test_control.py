@@ -33,6 +33,7 @@ def decide(
     window_open: bool | None = False,
     window_configured: bool = False,
     ac_off_elapsed: float = 1000,
+    ac_on_elapsed: float = float("inf"),
     mode_elapsed: float = 1000,
     preset: Preset = Preset.COMFORT,
     config: RoomConfig | None = None,
@@ -48,6 +49,7 @@ def decide(
             window_open=window_open,
             ac_off_elapsed_seconds=ac_off_elapsed,
             mode_elapsed_seconds=mode_elapsed,
+            ac_on_elapsed_seconds=ac_on_elapsed,
         ),
         memory or ControlMemory(),
     )
@@ -90,6 +92,7 @@ def test_open_window_falls_back_to_fan_only() -> None:
 def test_open_window_can_be_ignored() -> None:
     result = decide(
         VirtualMode.COOL,
+        temperature=22.5,
         window_configured=True,
         window_open=True,
         config=room_config(
@@ -118,15 +121,99 @@ def test_unavailable_configured_window_fails_closed() -> None:
     assert result.reason == "window_unavailable"
 
 
-def test_explicit_cool_keeps_physical_ac_in_cool() -> None:
-    result = decide(VirtualMode.COOL, temperature=21.0, target=22.0)
+def test_explicit_cool_stops_at_lower_hysteresis() -> None:
+    result = decide(
+        VirtualMode.COOL,
+        temperature=21.5,
+        target=22.0,
+        memory=ControlMemory(last_output_mode=OutputMode.COOL, cooling_active=True),
+        config=room_config(
+            cooling_hysteresis_on=0.5,
+            cooling_hysteresis_off=0.5,
+            minimum_seconds_cooling_on=0,
+        ),
+    )
+    assert result.output_mode is OutputMode.OFF
+    assert result.reason == "cool_target_satisfied"
+
+
+def test_explicit_cool_stays_on_inside_dead_band() -> None:
+    result = decide(
+        VirtualMode.COOL,
+        temperature=22.0,
+        target=22.0,
+        memory=ControlMemory(last_output_mode=OutputMode.COOL, cooling_active=True),
+        config=room_config(
+            cooling_hysteresis_on=0.5,
+            cooling_hysteresis_off=0.5,
+        ),
+    )
     assert result.output_mode is OutputMode.COOL
-    assert result.ac_target_temperature == 22.0
-    assert result.heat_demand is False
+
+
+def test_explicit_cool_waits_until_upper_hysteresis() -> None:
+    result = decide(
+        VirtualMode.COOL,
+        temperature=22.49,
+        target=22.0,
+        config=room_config(
+            cooling_hysteresis_on=0.5,
+            cooling_hysteresis_off=0.5,
+        ),
+    )
+    assert result.output_mode is OutputMode.OFF
+    assert result.reason == "cool_target_satisfied"
+
+
+def test_explicit_cool_starts_at_upper_hysteresis() -> None:
+    result = decide(
+        VirtualMode.COOL,
+        temperature=22.5,
+        target=22.0,
+        config=room_config(
+            cooling_hysteresis_on=0.5,
+            cooling_hysteresis_off=0.5,
+        ),
+    )
+    assert result.output_mode is OutputMode.COOL
+    assert result.reason == "explicit_cool"
+
+
+def test_explicit_cool_does_not_restart_inside_dead_band() -> None:
+    result = decide(
+        VirtualMode.COOL,
+        temperature=22.0,
+        target=22.0,
+        memory=ControlMemory(last_output_mode=OutputMode.COOL, cooling_active=False),
+        config=room_config(
+            cooling_hysteresis_on=0.5,
+            cooling_hysteresis_off=0.5,
+        ),
+    )
+    assert result.output_mode is OutputMode.OFF
+    assert result.reason == "cool_target_satisfied"
+
+
+def test_explicit_cool_obeys_minimum_on_before_stop() -> None:
+    result = decide(
+        VirtualMode.COOL,
+        temperature=21.5,
+        target=22.0,
+        ac_on_elapsed=60,
+        memory=ControlMemory(cooling_active=True),
+        config=room_config(
+            cooling_hysteresis_on=0.5,
+            cooling_hysteresis_off=0.5,
+            minimum_seconds_cooling_on=300,
+        ),
+    )
+    assert result.output_mode is OutputMode.COOL
+    assert result.reason == "ac_minimum_on"
+    assert result.retry_after_seconds == 240
 
 
 def test_explicit_cool_obeys_compressor_minimum_off() -> None:
-    result = decide(VirtualMode.COOL, ac_off_elapsed=60)
+    result = decide(VirtualMode.COOL, temperature=22.5, ac_off_elapsed=60)
     assert result.output_mode is OutputMode.OFF
     assert result.reason == "ac_minimum_off"
 
@@ -140,11 +227,23 @@ def test_explicit_dry_obeys_compressor_minimum_off() -> None:
 def test_explicit_cool_obeys_heat_to_cool_reversal_guard() -> None:
     result = decide(
         VirtualMode.COOL,
+        temperature=22.5,
         mode_elapsed=60,
         memory=ControlMemory(last_output_mode=OutputMode.HEAT),
     )
     assert result.output_mode is OutputMode.OFF
     assert result.reason == "mode_reversal_guard"
+
+
+def test_explicit_cool_does_not_guard_when_below_start_threshold() -> None:
+    result = decide(
+        VirtualMode.COOL,
+        temperature=21.0,
+        mode_elapsed=60,
+        memory=ControlMemory(last_output_mode=OutputMode.HEAT),
+    )
+    assert result.output_mode is OutputMode.OFF
+    assert result.reason == "cool_target_satisfied"
 
 
 def test_explicit_heat_obeys_cool_to_heat_reversal_guard() -> None:
@@ -207,6 +306,7 @@ def test_auto_does_not_restart_ac_before_minimum_off_time() -> None:
 def test_disabled_safe_cooling_delay_allows_immediate_start() -> None:
     result = decide(
         VirtualMode.COOL,
+        temperature=22.5,
         ac_off_elapsed=0,
         config=room_config(
             enable_safe_cooling_delay=False,

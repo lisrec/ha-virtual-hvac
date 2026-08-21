@@ -24,6 +24,7 @@ _SAFE_ROOM_STATUSES = frozenset(
         "auto_cool",
         "auto_dead_band",
         "auto_heat",
+        "cool_target_satisfied",
         "explicit_cool",
         "explicit_dry",
         "explicit_fan_only",

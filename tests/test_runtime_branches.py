@@ -688,9 +688,48 @@ async def test_shared_retry_turns_on_after_first_start_with_relay_already_off(
 
 
 @pytest.mark.asyncio
+async def test_explicit_cool_target_stop_clears_previous_output_memory(hass, monkeypatch) -> None:
+    now = utcnow()
+    set_authoritative_states(hass)
+    hass.states.async_set("sensor.temperature", "22.5", {"unit_of_measurement": "°C"})
+    hass.states.async_set(
+        "climate.ac",
+        HVACMode.COOL,
+        {"hvac_modes": [HVACMode.OFF, HVACMode.COOL]},
+    )
+    room = make_room(
+        hass,
+        cooling_hysteresis_on=0.5,
+        cooling_hysteresis_off=0.5,
+    )
+    room._ready = True
+    room.mode = VirtualMode.COOL
+    room.target_temperature = 22.0
+    room._memory = ControlMemory(last_output_mode=OutputMode.OFF)
+    monkeypatch.setattr("custom_components.virtual_hvac.runtime.utcnow", lambda: now)
+    monkeypatch.setattr(
+        room._actuators, "async_apply", AsyncMock(return_value=ActuationResult(True))
+    )
+
+    await room.async_evaluate()
+    assert room.decision.output_mode is OutputMode.COOL
+    assert room._memory.cooling_active is True
+
+    hass.states.async_set("sensor.temperature", "21.5", {"unit_of_measurement": "°C"})
+    await room.async_evaluate()
+    room._cancel_retry_timer()
+
+    assert room.decision.output_mode is OutputMode.OFF
+    assert room.status == "cool_target_satisfied"
+    assert room._memory.last_output_mode is OutputMode.COOL
+    assert room._memory.cooling_active is False
+
+
+@pytest.mark.asyncio
 async def test_fan_only_must_wait_for_cooling_minimum_off_before_cool(hass, monkeypatch) -> None:
     now = utcnow()
     set_authoritative_states(hass)
+    hass.states.async_set("sensor.temperature", "22.5", {"unit_of_measurement": "°C"})
     hass.states.async_set(
         "climate.ac",
         HVACMode.FAN_ONLY,
@@ -757,6 +796,7 @@ async def test_cooling_on_timestamp_starts_after_actuation_ack(hass, monkeypatch
     acknowledged = started + timedelta(seconds=10)
     clock = {"now": started}
     set_authoritative_states(hass)
+    hass.states.async_set("sensor.temperature", "22.5", {"unit_of_measurement": "°C"})
     room = make_room(
         hass,
         enable_safe_cooling_delay=True,

@@ -95,7 +95,11 @@ class VirtualRoomClimate(VirtualHVACRoomEntity, ClimateEntity, RestoreEntity):
             return HVACAction.DRYING
         if output is OutputMode.FAN_ONLY:
             return HVACAction.FAN
-        if self.room.status in ("heat_target_satisfied", "auto_dead_band"):
+        if self.room.status in (
+            "cool_target_satisfied",
+            "heat_target_satisfied",
+            "auto_dead_band",
+        ):
             return HVACAction.IDLE
         return HVACAction.OFF
 

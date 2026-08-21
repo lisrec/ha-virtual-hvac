@@ -96,6 +96,7 @@ def fake_room(output: OutputMode, *, status: str = "test") -> SimpleNamespace:
         (OutputMode.COOL, "explicit_cool", HVACAction.COOLING),
         (OutputMode.DRY, "explicit_dry", HVACAction.DRYING),
         (OutputMode.FAN_ONLY, "explicit_fan_only", HVACAction.FAN),
+        (OutputMode.OFF, "cool_target_satisfied", HVACAction.IDLE),
         (OutputMode.OFF, "auto_dead_band", HVACAction.IDLE),
         (OutputMode.OFF, "mode_off", HVACAction.OFF),
     ],
