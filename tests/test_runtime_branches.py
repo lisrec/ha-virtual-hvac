@@ -29,8 +29,8 @@ def room_config(**overrides: object) -> RoomConfig:
     values: dict[str, object] = {
         "name": "Room",
         "temperature_sensor_entity_ids": ("sensor.temperature",),
-        "ac_entity_id": "climate.ac",
-        "heater_entity_id": "switch.heater",
+        "ac_entity_ids": ("climate.ac",),
+        "heater_entity_ids": ("switch.heater",),
         "window_entity_ids": ("binary_sensor.window",),
         "rapid_entity_id": "switch.rapid",
         "silent_entity_id": "switch.silent",
@@ -214,7 +214,7 @@ async def test_temperature_collection_ignores_stale_invalid_and_unknown_sources(
 
 @pytest.mark.asyncio
 async def test_supported_modes_follow_live_ac_capabilities(hass) -> None:
-    heater_only = make_room(hass, ac_entity_id=None)
+    heater_only = make_room(hass, ac_entity_ids=())
     assert heater_only.supported_virtual_modes() == [VirtualMode.OFF, VirtualMode.HEAT]
 
     room = make_room(hass)
@@ -236,7 +236,7 @@ async def test_supported_modes_follow_live_ac_capabilities(hass) -> None:
 
 @pytest.mark.asyncio
 async def test_restore_ignores_unsupported_mode_and_invalid_target(hass) -> None:
-    room = make_room(hass, ac_entity_id=None)
+    room = make_room(hass, ac_entity_ids=())
     listener = Mock()
     room.async_add_listener(listener)
 
@@ -250,7 +250,7 @@ async def test_restore_ignores_unsupported_mode_and_invalid_target(hass) -> None
 
 @pytest.mark.asyncio
 async def test_room_rejects_unsupported_mode_and_out_of_range_target(hass) -> None:
-    room = make_room(hass, ac_entity_id=None)
+    room = make_room(hass, ac_entity_ids=())
     with pytest.raises(ValueError, match="Unsupported HVAC mode"):
         await room.async_set_mode(VirtualMode.COOL)
     with pytest.raises(ValueError, match="between 5 and 35"):
@@ -355,7 +355,7 @@ async def test_window_and_ac_state_helpers_fail_closed(hass) -> None:
     assert room._ac_off_elapsed(utcnow()) == 0.0
     hass.states.async_set("climate.ac", HVACMode.COOL)
     assert math.isinf(room._ac_off_elapsed(utcnow()))
-    no_ac = make_room(hass, ac_entity_id=None)
+    no_ac = make_room(hass, ac_entity_ids=())
     assert math.isinf(no_ac._ac_off_elapsed(utcnow()))
 
 
@@ -627,6 +627,7 @@ async def test_shared_retry_turns_on_after_first_start_with_relay_already_off(
         ControllerConfig(
             name="Controller",
             shared_heat_source_entity_id="switch.shared",
+            enable_safe_heating_delay=True,
             minimum_seconds_heating_on=12,
             minimum_seconds_heating_off=12,
         ),

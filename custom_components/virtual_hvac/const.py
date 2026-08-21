@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from enum import StrEnum
+
 from homeassistant.const import Platform
 
 DOMAIN = "virtual_hvac"
@@ -19,9 +21,10 @@ CONF_ENABLE_SAFE_HEATING_DELAY = "enable_safe_heating_delay"
 CONF_MIN_HEATING_ON = "minimum_seconds_heating_on"
 CONF_MIN_HEATING_OFF = "minimum_seconds_heating_off"
 CONF_TEMPERATURE_SENSORS = "temperature_sensor_entity_ids"
-CONF_AC_ENTITY = "ac_entity_id"
-CONF_HEATER_ENTITY = "heater_entity_id"
+CONF_AC_ENTITIES = "ac_entity_ids"
+CONF_HEATER_ENTITIES = "heater_entity_ids"
 CONF_WINDOW_ENTITIES = "window_entity_ids"
+CONF_WINDOW_OPEN_BEHAVIOR = "window_open_behavior"
 CONF_RAPID_ENTITY = "rapid_entity_id"
 CONF_SILENT_ENTITY = "silent_entity_id"
 CONF_HEAT_HYSTERESIS_ON = "heating_hysteresis_on"
@@ -39,9 +42,19 @@ CONF_TEMPERATURE_MAX_AGE = "temperature_sensor_max_age_seconds"
 LEGACY_CONF_SHARED_MIN_ON = "shared_minimum_on_seconds"
 LEGACY_CONF_SHARED_MIN_OFF = "shared_minimum_off_seconds"
 LEGACY_CONF_AC_MIN_OFF = "ac_minimum_off_seconds"
+LEGACY_CONF_AC_ENTITY = "ac_entity_id"
+LEGACY_CONF_HEATER_ENTITY = "heater_entity_id"
 LEGACY_CONF_WINDOW_ENTITY = "window_entity_id"
 
 DEFAULT_CONTROLLER_NAME = "Virtual HVAC"
 DEFAULT_TARGET_TEMPERATURE = 21.0
 MIN_TARGET_TEMPERATURE = 5.0
 MAX_TARGET_TEMPERATURE = 35.0
+
+
+class WindowOpenBehavior(StrEnum):
+    """Action taken when a configured window is known to be open."""
+
+    TURN_OFF_HVAC = "turn_off_hvac"
+    FALLBACK_TO_FAN_ONLY = "fallback_to_fan_only"
+    IGNORE_OPEN_WINDOW = "ignore_open_window"

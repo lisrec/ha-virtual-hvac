@@ -6,6 +6,7 @@ import math
 from dataclasses import dataclass
 from enum import StrEnum
 
+from .const import WindowOpenBehavior
 from .models import RoomConfig
 
 
@@ -91,13 +92,28 @@ class RoomController:
             return self._off("no_valid_temperature", rapid=False, silent=False)
         if not math.isfinite(inputs.target_temperature):
             return self._off("invalid_target", rapid=False, silent=False)
+        if inputs.mode is VirtualMode.OFF:
+            return self._off("mode_off", rapid=False, silent=False)
         if inputs.window_configured:
             if inputs.window_open is None:
                 return self._off("window_unavailable", rapid=False, silent=False)
             if inputs.window_open:
-                return self._off("window_open", rapid=False, silent=False)
-        if inputs.mode is VirtualMode.OFF:
-            return self._off("mode_off", rapid=False, silent=False)
+                if self._config.window_open_behavior is WindowOpenBehavior.IGNORE_OPEN_WINDOW:
+                    pass
+                elif self._config.window_open_behavior is WindowOpenBehavior.FALLBACK_TO_FAN_ONLY:
+                    if not self._config.ac_entity_ids:
+                        return self._off("window_fan_only_unavailable", rapid=False, silent=False)
+                    return ControlDecision(
+                        OutputMode.FAN_ONLY,
+                        False,
+                        False,
+                        None,
+                        False,
+                        False,
+                        "window_open_fan_only",
+                    )
+                else:
+                    return self._off("window_open", rapid=False, silent=False)
 
         if inputs.mode is VirtualMode.COOL:
             if self._is_reversal(memory.last_output_mode, OutputMode.COOL, inputs):
@@ -163,7 +179,7 @@ class RoomController:
             return self._off("heat_target_satisfied", rapid=rapid, silent=silent)
         output = (
             OutputMode.HEAT_ASSIST
-            if rapid and self._config.boost_ac_heat_assist and self._config.ac_entity_id
+            if rapid and self._config.boost_ac_heat_assist and self._config.ac_entity_ids
             else OutputMode.HEAT
         )
         return ControlDecision(

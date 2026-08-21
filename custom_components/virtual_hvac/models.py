@@ -5,6 +5,14 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any, Self
 
+from .const import (
+    LEGACY_CONF_AC_ENTITY,
+    LEGACY_CONF_AC_MIN_OFF,
+    LEGACY_CONF_HEATER_ENTITY,
+    LEGACY_CONF_WINDOW_ENTITY,
+    WindowOpenBehavior,
+)
+
 
 @dataclass(frozen=True, slots=True)
 class ControllerConfig:
@@ -12,7 +20,7 @@ class ControllerConfig:
 
     name: str
     shared_heat_source_entity_id: str | None = None
-    enable_safe_heating_delay: bool = True
+    enable_safe_heating_delay: bool = False
     minimum_seconds_heating_on: int = 300
     minimum_seconds_heating_off: int = 180
 
@@ -33,7 +41,7 @@ class ControllerConfig:
     def from_mapping(cls, data: dict[str, Any]) -> Self:
         """Build settings from Home Assistant config-entry data."""
         values = dict(data)
-        values.setdefault("enable_safe_heating_delay", True)
+        values.setdefault("enable_safe_heating_delay", False)
         if "minimum_seconds_heating_on" not in values:
             values["minimum_seconds_heating_on"] = values.pop("shared_minimum_on_seconds", 300)
         if "minimum_seconds_heating_off" not in values:
@@ -47,16 +55,17 @@ class RoomConfig:
 
     name: str
     temperature_sensor_entity_ids: tuple[str, ...]
-    ac_entity_id: str | None = None
-    heater_entity_id: str | None = None
+    ac_entity_ids: tuple[str, ...] = ()
+    heater_entity_ids: tuple[str, ...] = ()
     window_entity_ids: tuple[str, ...] = ()
+    window_open_behavior: WindowOpenBehavior = WindowOpenBehavior.TURN_OFF_HVAC
     rapid_entity_id: str | None = None
     silent_entity_id: str | None = None
     heating_hysteresis_on: float = 0.5
     heating_hysteresis_off: float = 0.3
     cooling_hysteresis_on: float = 0.5
     cooling_hysteresis_off: float = 0.3
-    enable_safe_cooling_delay: bool = True
+    enable_safe_cooling_delay: bool = False
     minimum_seconds_cooling_on: int = 300
     minimum_seconds_cooling_off: int = 300
     mode_reversal_guard_seconds: int = 300
@@ -69,13 +78,19 @@ class RoomConfig:
             raise ValueError("room name must not be empty")
         if not isinstance(self.enable_safe_cooling_delay, bool):
             raise ValueError("cooling delay flag must be boolean")
+        if not isinstance(self.window_open_behavior, WindowOpenBehavior):
+            raise ValueError("window open behavior must be a supported value")
         if not self.temperature_sensor_entity_ids:
             raise ValueError("at least one temperature sensor is required")
         if len(set(self.temperature_sensor_entity_ids)) != len(self.temperature_sensor_entity_ids):
             raise ValueError("duplicate temperature sensor entities are not allowed")
+        if len(set(self.ac_entity_ids)) != len(self.ac_entity_ids):
+            raise ValueError("duplicate AC entities are not allowed")
+        if len(set(self.heater_entity_ids)) != len(self.heater_entity_ids):
+            raise ValueError("duplicate heater entities are not allowed")
         if len(set(self.window_entity_ids)) != len(self.window_entity_ids):
             raise ValueError("duplicate window sensor entities are not allowed")
-        if self.ac_entity_id is None and self.heater_entity_id is None:
+        if not self.ac_entity_ids and not self.heater_entity_ids:
             raise ValueError("at least one HVAC actuator is required")
         outputs = self.output_entity_ids()
         if len(outputs) != len(set(outputs)):
@@ -106,8 +121,8 @@ class RoomConfig:
         return tuple(
             entity_id
             for entity_id in (
-                self.ac_entity_id,
-                self.heater_entity_id,
+                *self.ac_entity_ids,
+                *self.heater_entity_ids,
                 self.rapid_entity_id,
                 self.silent_entity_id,
             )
@@ -116,22 +131,52 @@ class RoomConfig:
 
     def to_mapping(self) -> dict[str, Any]:
         """Return a storage-safe mapping."""
-        return asdict(self)
+        values = asdict(self)
+        for key in (
+            "temperature_sensor_entity_ids",
+            "ac_entity_ids",
+            "heater_entity_ids",
+            "window_entity_ids",
+        ):
+            values[key] = list(values[key])
+        values["window_open_behavior"] = self.window_open_behavior.value
+        return values
 
     @classmethod
     def from_mapping(cls, data: dict[str, Any]) -> Self:
         """Build settings from Home Assistant config-subentry data."""
         values = dict(data)
         values["temperature_sensor_entity_ids"] = tuple(values["temperature_sensor_entity_ids"])
-        legacy_window = values.pop("window_entity_id", None)
+
+        for canonical, legacy in (
+            ("ac_entity_ids", LEGACY_CONF_AC_ENTITY),
+            ("heater_entity_ids", LEGACY_CONF_HEATER_ENTITY),
+        ):
+            legacy_value = values.pop(legacy, None)
+            if canonical in values:
+                values[canonical] = tuple(values[canonical])
+            elif legacy_value not in (None, ""):
+                values[canonical] = (legacy_value,)
+            else:
+                values[canonical] = ()
+
+        legacy_window = values.pop(LEGACY_CONF_WINDOW_ENTITY, None)
         if "window_entity_ids" in values:
             values["window_entity_ids"] = tuple(values["window_entity_ids"])
         elif legacy_window not in (None, ""):
             values["window_entity_ids"] = (legacy_window,)
-        values.setdefault("enable_safe_cooling_delay", True)
-        legacy_minimum_off = values.pop("ac_minimum_off_seconds", 300)
+        else:
+            values["window_entity_ids"] = ()
+
+        values.setdefault("enable_safe_cooling_delay", False)
+        legacy_minimum_off = values.pop(LEGACY_CONF_AC_MIN_OFF, 300)
         values.setdefault("minimum_seconds_cooling_on", legacy_minimum_off)
         values.setdefault("minimum_seconds_cooling_off", legacy_minimum_off)
+        raw_window_behavior = values.get("window_open_behavior", WindowOpenBehavior.TURN_OFF_HVAC)
+        try:
+            values["window_open_behavior"] = WindowOpenBehavior(raw_window_behavior)
+        except (TypeError, ValueError) as err:
+            raise ValueError("window open behavior must be a supported value") from err
         return cls(**values)
 
 

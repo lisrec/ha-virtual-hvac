@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from custom_components.virtual_hvac.const import WindowOpenBehavior
 from custom_components.virtual_hvac.control import (
     ControlInput,
     ControlMemory,
@@ -15,8 +16,9 @@ def room_config(**overrides: object) -> RoomConfig:
     values: dict[str, object] = {
         "name": "Room",
         "temperature_sensor_entity_ids": ("sensor.temperature",),
-        "ac_entity_id": "climate.ac",
-        "heater_entity_id": "climate.trv",
+        "ac_entity_ids": ("climate.ac",),
+        "heater_entity_ids": ("climate.trv",),
+        "enable_safe_cooling_delay": True,
     }
     values.update(overrides)
     return RoomConfig(**values)  # type: ignore[arg-type]
@@ -69,6 +71,45 @@ def test_open_window_fails_closed() -> None:
     result = decide(VirtualMode.COOL, window_configured=True, window_open=True)
     assert result.output_mode is OutputMode.OFF
     assert result.reason == "window_open"
+
+
+def test_open_window_falls_back_to_fan_only() -> None:
+    result = decide(
+        VirtualMode.COOL,
+        window_configured=True,
+        window_open=True,
+        config=room_config(
+            window_open_behavior=WindowOpenBehavior.FALLBACK_TO_FAN_ONLY,
+        ),
+    )
+    assert result.output_mode is OutputMode.FAN_ONLY
+    assert result.heat_demand is False
+    assert result.reason == "window_open_fan_only"
+
+
+def test_open_window_can_be_ignored() -> None:
+    result = decide(
+        VirtualMode.COOL,
+        window_configured=True,
+        window_open=True,
+        config=room_config(
+            window_open_behavior=WindowOpenBehavior.IGNORE_OPEN_WINDOW,
+        ),
+    )
+    assert result.output_mode is OutputMode.COOL
+
+
+def test_open_window_fallback_does_not_override_explicit_off() -> None:
+    result = decide(
+        VirtualMode.OFF,
+        window_configured=True,
+        window_open=True,
+        config=room_config(
+            window_open_behavior=WindowOpenBehavior.FALLBACK_TO_FAN_ONLY,
+        ),
+    )
+    assert result.output_mode is OutputMode.OFF
+    assert result.reason == "mode_off"
 
 
 def test_unavailable_configured_window_fails_closed() -> None:

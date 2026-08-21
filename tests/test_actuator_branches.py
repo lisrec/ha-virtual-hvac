@@ -22,8 +22,8 @@ def room_config(**overrides: object) -> RoomConfig:
     values: dict[str, object] = {
         "name": "Room",
         "temperature_sensor_entity_ids": ("sensor.temperature",),
-        "ac_entity_id": "climate.ac",
-        "heater_entity_id": "switch.heater",
+        "ac_entity_ids": ("climate.ac",),
+        "heater_entity_ids": ("switch.heater",),
         "rapid_entity_id": "switch.rapid",
         "silent_entity_id": "switch.silent",
     }
@@ -261,11 +261,11 @@ async def test_authoritative_check_rejects_unknown_output(hass) -> None:
 async def test_absent_actuators_are_only_safe_in_the_off_direction(hass) -> None:
     ac_only = ActuatorAdapter(
         hass,
-        room_config(heater_entity_id=None, rapid_entity_id=None, silent_entity_id=None),
+        room_config(heater_entity_ids=(), rapid_entity_id=None, silent_entity_id=None),
     )
     heater_only = ActuatorAdapter(
         hass,
-        room_config(ac_entity_id=None, rapid_entity_id=None, silent_entity_id=None),
+        room_config(ac_entity_ids=(), rapid_entity_id=None, silent_entity_id=None),
     )
 
     assert await ac_only._async_set_heater(False, 21.0)
@@ -278,7 +278,9 @@ async def test_absent_actuators_are_only_safe_in_the_off_direction(hass) -> None
 async def test_heater_rejects_unsupported_entity_domain(hass) -> None:
     adapter = ActuatorAdapter(
         hass,
-        room_config(heater_entity_id="light.heater", rapid_entity_id=None, silent_entity_id=None),
+        room_config(
+            heater_entity_ids=("light.heater",), rapid_entity_id=None, silent_entity_id=None
+        ),
     )
     assert not await adapter._async_set_heater(True, 21.0)
 
@@ -294,3 +296,40 @@ async def test_climate_helpers_reject_unknown_modes_and_skip_equal_temperature(h
     )
     assert not await adapter._async_set_climate_mode("climate.ac", HVACMode.COOL)
     assert await adapter._async_set_climate_temperature("climate.ac", 21.001)
+
+
+@pytest.mark.asyncio
+async def test_actuator_banks_require_every_ac_and_heater_to_acknowledge(hass, monkeypatch) -> None:
+    adapter = ActuatorAdapter(
+        hass,
+        room_config(
+            ac_entity_ids=("climate.ac_one", "climate.ac_two"),
+            heater_entity_ids=("switch.heater_one", "switch.heater_two"),
+            rapid_entity_id=None,
+            silent_entity_id=None,
+        ),
+    )
+    set_climate_mode = AsyncMock(return_value=True)
+    set_climate_temperature = AsyncMock(return_value=True)
+    confirmed_switch = AsyncMock(return_value=True)
+    monkeypatch.setattr(adapter, "_async_set_climate_mode", set_climate_mode)
+    monkeypatch.setattr(adapter, "_async_set_climate_temperature", set_climate_temperature)
+    monkeypatch.setattr(
+        "custom_components.virtual_hvac.actuators.async_set_switch_confirmed", confirmed_switch
+    )
+
+    assert await adapter._async_set_ac(HVACMode.COOL, 22.0)
+    assert await adapter._async_set_heater(True, 21.0)
+
+    assert [call.args for call in set_climate_mode.await_args_list] == [
+        ("climate.ac_one", HVACMode.COOL),
+        ("climate.ac_two", HVACMode.COOL),
+    ]
+    assert [call.args for call in set_climate_temperature.await_args_list] == [
+        ("climate.ac_one", 22.0),
+        ("climate.ac_two", 22.0),
+    ]
+    assert [call.args for call in confirmed_switch.await_args_list] == [
+        (hass, "switch.heater_one", True),
+        (hass, "switch.heater_two", True),
+    ]

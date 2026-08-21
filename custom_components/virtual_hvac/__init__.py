@@ -8,20 +8,26 @@ from homeassistant.exceptions import ConfigEntryError
 from homeassistant.helpers import device_registry as dr
 
 from .const import (
+    CONF_AC_ENTITIES,
     CONF_ENABLE_SAFE_COOLING_DELAY,
     CONF_ENABLE_SAFE_HEATING_DELAY,
+    CONF_HEATER_ENTITIES,
     CONF_MIN_COOLING_OFF,
     CONF_MIN_COOLING_ON,
     CONF_MIN_HEATING_OFF,
     CONF_MIN_HEATING_ON,
     CONF_WINDOW_ENTITIES,
+    CONF_WINDOW_OPEN_BEHAVIOR,
     DOMAIN,
+    LEGACY_CONF_AC_ENTITY,
     LEGACY_CONF_AC_MIN_OFF,
+    LEGACY_CONF_HEATER_ENTITY,
     LEGACY_CONF_SHARED_MIN_OFF,
     LEGACY_CONF_SHARED_MIN_ON,
     LEGACY_CONF_WINDOW_ENTITY,
     PLATFORMS,
     SUBENTRY_ROOM,
+    WindowOpenBehavior,
 )
 from .models import ControllerConfig, RoomConfig, validate_output_ownership
 from .runtime import ControllerRuntime
@@ -33,35 +39,58 @@ async def async_migrate_entry(hass: HomeAssistant, entry: VirtualHVACConfigEntry
     """Migrate legacy protection and window fields to the current contract."""
     if entry.version != 1:
         return False
-    if entry.minor_version >= 3:
+    if entry.minor_version >= 4:
         return True
 
     controller_data = dict(entry.data)
-    legacy_heating_on = controller_data.pop(LEGACY_CONF_SHARED_MIN_ON, 300)
-    legacy_heating_off = controller_data.pop(LEGACY_CONF_SHARED_MIN_OFF, 180)
-    controller_data.setdefault(CONF_ENABLE_SAFE_HEATING_DELAY, True)
-    controller_data.setdefault(CONF_MIN_HEATING_ON, legacy_heating_on)
-    controller_data.setdefault(CONF_MIN_HEATING_OFF, legacy_heating_off)
+    if entry.minor_version < 3:
+        legacy_heating_on = controller_data.pop(LEGACY_CONF_SHARED_MIN_ON, 300)
+        legacy_heating_off = controller_data.pop(LEGACY_CONF_SHARED_MIN_OFF, 180)
+        controller_data.setdefault(CONF_ENABLE_SAFE_HEATING_DELAY, True)
+        controller_data.setdefault(CONF_MIN_HEATING_ON, legacy_heating_on)
+        controller_data.setdefault(CONF_MIN_HEATING_OFF, legacy_heating_off)
+    else:
+        controller_data.setdefault(CONF_ENABLE_SAFE_HEATING_DELAY, True)
 
     for subentry in entry.subentries.values():
         if subentry.subentry_type != SUBENTRY_ROOM:
             continue
         room_data = dict(subentry.data)
-        legacy_cooling_off = room_data.pop(LEGACY_CONF_AC_MIN_OFF, 300)
-        room_data.setdefault(CONF_ENABLE_SAFE_COOLING_DELAY, True)
-        room_data.setdefault(CONF_MIN_COOLING_ON, legacy_cooling_off)
-        room_data.setdefault(CONF_MIN_COOLING_OFF, legacy_cooling_off)
-        legacy_window = room_data.pop(LEGACY_CONF_WINDOW_ENTITY, None)
-        room_data.setdefault(
-            CONF_WINDOW_ENTITIES, [legacy_window] if legacy_window not in (None, "") else []
-        )
+        if entry.minor_version < 3:
+            legacy_cooling_off = room_data.pop(LEGACY_CONF_AC_MIN_OFF, 300)
+            room_data.setdefault(CONF_ENABLE_SAFE_COOLING_DELAY, True)
+            room_data.setdefault(CONF_MIN_COOLING_ON, legacy_cooling_off)
+            room_data.setdefault(CONF_MIN_COOLING_OFF, legacy_cooling_off)
+            legacy_window = room_data.pop(LEGACY_CONF_WINDOW_ENTITY, None)
+            room_data.setdefault(
+                CONF_WINDOW_ENTITIES,
+                [legacy_window] if legacy_window not in (None, "") else [],
+            )
+        else:
+            room_data.setdefault(CONF_ENABLE_SAFE_COOLING_DELAY, True)
+
+        if entry.minor_version < 4:
+            legacy_ac = room_data.pop(LEGACY_CONF_AC_ENTITY, None)
+            room_data.setdefault(
+                CONF_AC_ENTITIES,
+                [legacy_ac] if legacy_ac not in (None, "") else [],
+            )
+            legacy_heater = room_data.pop(LEGACY_CONF_HEATER_ENTITY, None)
+            room_data.setdefault(
+                CONF_HEATER_ENTITIES,
+                [legacy_heater] if legacy_heater not in (None, "") else [],
+            )
+            room_data.setdefault(
+                CONF_WINDOW_OPEN_BEHAVIOR,
+                WindowOpenBehavior.TURN_OFF_HVAC.value,
+            )
         hass.config_entries.async_update_subentry(entry, subentry, data=room_data)
 
     hass.config_entries.async_update_entry(
         entry,
         data=controller_data,
         version=1,
-        minor_version=3,
+        minor_version=4,
     )
     return True
 

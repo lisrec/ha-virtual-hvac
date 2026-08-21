@@ -9,7 +9,7 @@ from homeassistant.const import ATTR_DEVICE_CLASS, ATTR_UNIT_OF_MEASUREMENT
 from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.virtual_hvac.const import DOMAIN, SUBENTRY_ROOM
+from custom_components.virtual_hvac.const import DOMAIN, SUBENTRY_ROOM, WindowOpenBehavior
 
 CONTROLLER_DATA = {
     "name": "Virtual HVAC",
@@ -20,9 +20,10 @@ CONTROLLER_DATA = {
 ROOM_DATA = {
     "name": "Test room",
     "temperature_sensor_entity_ids": ["sensor.test_temperature"],
-    "ac_entity_id": "climate.test_ac",
-    "heater_entity_id": "climate.test_heater",
+    "ac_entity_ids": ["climate.test_ac", "climate.test_ac_two"],
+    "heater_entity_ids": ["climate.test_heater", "climate.test_heater_two"],
     "window_entity_ids": ["binary_sensor.window_one", "binary_sensor.window_two"],
+    "window_open_behavior": WindowOpenBehavior.TURN_OFF_HVAC,
     "heating_hysteresis_on": 0.5,
     "heating_hysteresis_off": 0.3,
     "cooling_hysteresis_on": 0.5,
@@ -43,7 +44,9 @@ def set_source_entities(hass) -> None:
         {ATTR_DEVICE_CLASS: "temperature", ATTR_UNIT_OF_MEASUREMENT: "°C"},
     )
     hass.states.async_set("climate.test_ac", "off", {"hvac_modes": ["off", "cool"]})
+    hass.states.async_set("climate.test_ac_two", "off", {"hvac_modes": ["off", "cool"]})
     hass.states.async_set("climate.test_heater", "off", {"hvac_modes": ["off", "heat"]})
+    hass.states.async_set("climate.test_heater_two", "off", {"hvac_modes": ["off", "heat"]})
 
 
 @pytest.mark.asyncio
@@ -58,6 +61,14 @@ async def test_user_flow_creates_single_controller(hass) -> None:
         "minimum_seconds_heating_on",
         "minimum_seconds_heating_off",
     ]
+    assert (
+        next(
+            key.default()
+            for key in result["data_schema"].schema
+            if key.schema == "enable_safe_heating_delay"
+        )
+        is False
+    )
 
     result = await hass.config_entries.flow.async_configure(result["flow_id"], CONTROLLER_DATA)
     assert result["type"] is FlowResultType.CREATE_ENTRY
@@ -97,6 +108,34 @@ async def test_room_subentry_flow_creates_room(hass) -> None:
         if key.schema == "window_entity_ids"
     )
     assert window_selector.config["multiple"] is True
+    ac_selector = next(
+        selector
+        for key, selector in result["data_schema"].schema.items()
+        if key.schema == "ac_entity_ids"
+    )
+    assert ac_selector.config["multiple"] is True
+    heater_selector = next(
+        selector
+        for key, selector in result["data_schema"].schema.items()
+        if key.schema == "heater_entity_ids"
+    )
+    assert heater_selector.config["multiple"] is True
+    window_behavior_selector = next(
+        selector
+        for key, selector in result["data_schema"].schema.items()
+        if key.schema == "window_open_behavior"
+    )
+    assert window_behavior_selector.config["options"] == [
+        value.value for value in WindowOpenBehavior
+    ]
+    assert (
+        next(
+            key.default()
+            for key in result["data_schema"].schema
+            if key.schema == "enable_safe_cooling_delay"
+        )
+        is False
+    )
 
     result = await hass.config_entries.subentries.async_configure(result["flow_id"], ROOM_DATA)
     assert result["type"] is FlowResultType.CREATE_ENTRY

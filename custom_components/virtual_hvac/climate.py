@@ -107,42 +107,50 @@ class VirtualRoomClimate(VirtualHVACRoomEntity, ClimateEntity, RestoreEntity):
     @property
     @override
     def fan_modes(self) -> list[str] | None:
-        state = (
-            self.hass.states.get(self.room.config.ac_entity_id)
-            if self.room.config.ac_entity_id
-            else None
-        )
-        return list(state.attributes.get("fan_modes", [])) if state else None
+        states = [self.hass.states.get(entity_id) for entity_id in self.room.config.ac_entity_ids]
+        if not states or any(state is None for state in states):
+            return None
+        common = set(states[0].attributes.get("fan_modes", []))  # type: ignore[union-attr]
+        for state in states[1:]:
+            common.intersection_update(state.attributes.get("fan_modes", []))  # type: ignore[union-attr]
+        return [
+            mode
+            for mode in states[0].attributes.get("fan_modes", [])  # type: ignore[union-attr]
+            if mode in common
+        ]
 
     @property
     @override
     def fan_mode(self) -> str | None:
-        state = (
-            self.hass.states.get(self.room.config.ac_entity_id)
-            if self.room.config.ac_entity_id
-            else None
-        )
-        return state.attributes.get("fan_mode") if state else None
+        states = [self.hass.states.get(entity_id) for entity_id in self.room.config.ac_entity_ids]
+        if not states or any(state is None for state in states):
+            return None
+        modes = {state.attributes.get("fan_mode") for state in states}  # type: ignore[union-attr]
+        return modes.pop() if len(modes) == 1 else None
 
     @property
     @override
     def swing_modes(self) -> list[str] | None:
-        state = (
-            self.hass.states.get(self.room.config.ac_entity_id)
-            if self.room.config.ac_entity_id
-            else None
-        )
-        return list(state.attributes.get("swing_modes", [])) if state else None
+        states = [self.hass.states.get(entity_id) for entity_id in self.room.config.ac_entity_ids]
+        if not states or any(state is None for state in states):
+            return None
+        common = set(states[0].attributes.get("swing_modes", []))  # type: ignore[union-attr]
+        for state in states[1:]:
+            common.intersection_update(state.attributes.get("swing_modes", []))  # type: ignore[union-attr]
+        return [
+            mode
+            for mode in states[0].attributes.get("swing_modes", [])  # type: ignore[union-attr]
+            if mode in common
+        ]
 
     @property
     @override
     def swing_mode(self) -> str | None:
-        state = (
-            self.hass.states.get(self.room.config.ac_entity_id)
-            if self.room.config.ac_entity_id
-            else None
-        )
-        return state.attributes.get("swing_mode") if state else None
+        states = [self.hass.states.get(entity_id) for entity_id in self.room.config.ac_entity_ids]
+        if not states or any(state is None for state in states):
+            return None
+        modes = {state.attributes.get("swing_mode") for state in states}  # type: ignore[union-attr]
+        return modes.pop() if len(modes) == 1 else None
 
     @property
     @override

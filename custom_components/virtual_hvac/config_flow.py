@@ -28,11 +28,14 @@ from homeassistant.helpers.selector import (
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
     TextSelector,
 )
 
 from .const import (
-    CONF_AC_ENTITY,
+    CONF_AC_ENTITIES,
     CONF_BOOST_AC_HEAT,
     CONF_COOL_HYSTERESIS_OFF,
     CONF_COOL_HYSTERESIS_ON,
@@ -40,7 +43,7 @@ from .const import (
     CONF_ENABLE_SAFE_HEATING_DELAY,
     CONF_HEAT_HYSTERESIS_OFF,
     CONF_HEAT_HYSTERESIS_ON,
-    CONF_HEATER_ENTITY,
+    CONF_HEATER_ENTITIES,
     CONF_MIN_COOLING_OFF,
     CONF_MIN_COOLING_ON,
     CONF_MIN_HEATING_OFF,
@@ -54,9 +57,11 @@ from .const import (
     CONF_TEMPERATURE_SENSORS,
     CONF_TRV_OFFSET,
     CONF_WINDOW_ENTITIES,
+    CONF_WINDOW_OPEN_BEHAVIOR,
     DEFAULT_CONTROLLER_NAME,
     DOMAIN,
     SUBENTRY_ROOM,
+    WindowOpenBehavior,
 )
 from .models import ControllerConfig, RoomConfig, validate_output_ownership
 
@@ -95,7 +100,7 @@ def _controller_schema(defaults: Mapping[str, Any] | None = None) -> vol.Schema:
             ): EntitySelector(EntitySelectorConfig(domain=Platform.SWITCH)),
             vol.Required(
                 CONF_ENABLE_SAFE_HEATING_DELAY,
-                default=values.get(CONF_ENABLE_SAFE_HEATING_DELAY, True),
+                default=values.get(CONF_ENABLE_SAFE_HEATING_DELAY, False),
             ): BooleanSelector(),
             vol.Required(
                 CONF_MIN_HEATING_ON, default=values.get(CONF_MIN_HEATING_ON, 300)
@@ -123,17 +128,30 @@ def _room_schema(defaults: Mapping[str, Any] | None = None) -> vol.Schema:
                 )
             ),
             vol.Optional(
-                CONF_AC_ENTITY,
-                description={"suggested_value": values.get(CONF_AC_ENTITY)},
-            ): EntitySelector(EntitySelectorConfig(domain=Platform.CLIMATE)),
+                CONF_AC_ENTITIES,
+                default=values.get(CONF_AC_ENTITIES, []),
+            ): EntitySelector(EntitySelectorConfig(domain=Platform.CLIMATE, multiple=True)),
             vol.Optional(
-                CONF_HEATER_ENTITY,
-                description={"suggested_value": values.get(CONF_HEATER_ENTITY)},
-            ): EntitySelector(EntitySelectorConfig(domain=[Platform.CLIMATE, Platform.SWITCH])),
+                CONF_HEATER_ENTITIES,
+                default=values.get(CONF_HEATER_ENTITIES, []),
+            ): EntitySelector(
+                EntitySelectorConfig(domain=[Platform.CLIMATE, Platform.SWITCH], multiple=True)
+            ),
             vol.Optional(
                 CONF_WINDOW_ENTITIES,
                 default=values.get(CONF_WINDOW_ENTITIES, []),
             ): EntitySelector(EntitySelectorConfig(domain=Platform.BINARY_SENSOR, multiple=True)),
+            vol.Required(
+                CONF_WINDOW_OPEN_BEHAVIOR,
+                default=values.get(
+                    CONF_WINDOW_OPEN_BEHAVIOR, WindowOpenBehavior.TURN_OFF_HVAC.value
+                ),
+            ): SelectSelector(
+                SelectSelectorConfig(
+                    options=[behavior.value for behavior in WindowOpenBehavior],
+                    mode=SelectSelectorMode.DROPDOWN,
+                )
+            ),
             vol.Optional(
                 CONF_RAPID_ENTITY,
                 description={"suggested_value": values.get(CONF_RAPID_ENTITY)},
@@ -160,7 +178,7 @@ def _room_schema(defaults: Mapping[str, Any] | None = None) -> vol.Schema:
             ): _number_selector(0.1, 5.0, 0.1, "°"),
             vol.Required(
                 CONF_ENABLE_SAFE_COOLING_DELAY,
-                default=values.get(CONF_ENABLE_SAFE_COOLING_DELAY, True),
+                default=values.get(CONF_ENABLE_SAFE_COOLING_DELAY, False),
             ): BooleanSelector(),
             vol.Required(
                 CONF_MIN_COOLING_ON, default=values.get(CONF_MIN_COOLING_ON, 300)
@@ -195,7 +213,7 @@ class VirtualHVACConfigFlow(ConfigFlow, domain=DOMAIN):
     """Configure the singleton Virtual HVAC controller."""
 
     VERSION = 1
-    MINOR_VERSION = 3
+    MINOR_VERSION = 4
 
     @classmethod
     @callback
@@ -295,7 +313,10 @@ class RoomSubentryFlow(ConfigSubentryFlow):
                 else:
                     stored = room.to_mapping()
                     stored[CONF_TEMPERATURE_SENSORS] = list(room.temperature_sensor_entity_ids)
+                    stored[CONF_AC_ENTITIES] = list(room.ac_entity_ids)
+                    stored[CONF_HEATER_ENTITIES] = list(room.heater_entity_ids)
                     stored[CONF_WINDOW_ENTITIES] = list(room.window_entity_ids)
+                    stored[CONF_WINDOW_OPEN_BEHAVIOR] = room.window_open_behavior.value
                     if current is not None:
                         return self.async_update_and_abort(
                             entry, current, title=room.name, data=stored

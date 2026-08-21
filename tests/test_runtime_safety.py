@@ -21,8 +21,8 @@ def room_config(**overrides: object) -> RoomConfig:
     values: dict[str, object] = {
         "name": "Room",
         "temperature_sensor_entity_ids": ("sensor.temperature",),
-        "ac_entity_id": "climate.ac",
-        "heater_entity_id": "climate.heater",
+        "ac_entity_ids": ("climate.ac",),
+        "heater_entity_ids": ("climate.heater",),
         "minimum_seconds_cooling_on": 0,
         "minimum_seconds_cooling_off": 0,
         "mode_reversal_guard_seconds": 0,

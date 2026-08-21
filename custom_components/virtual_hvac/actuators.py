@@ -183,71 +183,98 @@ class ActuatorAdapter:
         return True
 
     async def async_set_fan_mode(self, fan_mode: str) -> bool:
-        """Pass a supported fan mode to the selected AC."""
-        entity_id = self.config.ac_entity_id
-        if not entity_id:
+        """Pass a fan mode to every AC after validating the complete bank."""
+        entity_ids = self.config.ac_entity_ids
+        if not entity_ids:
             return False
-        state = self.hass.states.get(entity_id)
-        if state is None or fan_mode not in state.attributes.get("fan_modes", []):
+        states = [self.hass.states.get(entity_id) for entity_id in entity_ids]
+        if any(
+            state is None
+            or state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN)
+            or fan_mode not in state.attributes.get("fan_modes", [])
+            for state in states
+        ):
             return False
-        if state.attributes.get("fan_mode") == fan_mode:
-            return True
-        return await _async_call_and_confirm(
-            self.hass,
-            CLIMATE_DOMAIN,
-            "set_fan_mode",
-            {ATTR_ENTITY_ID: entity_id, "fan_mode": fan_mode},
-            entity_id,
-            lambda current: current is not None and current.attributes.get("fan_mode") == fan_mode,
-        )
+        for entity_id, state in zip(entity_ids, states, strict=True):
+            if state is not None and state.attributes.get("fan_mode") == fan_mode:
+                continue
+            if not await _async_call_and_confirm(
+                self.hass,
+                CLIMATE_DOMAIN,
+                "set_fan_mode",
+                {ATTR_ENTITY_ID: entity_id, "fan_mode": fan_mode},
+                entity_id,
+                lambda current: current is not None
+                and current.attributes.get("fan_mode") == fan_mode,
+            ):
+                return False
+        return True
 
     async def async_set_swing_mode(self, swing_mode: str) -> bool:
-        """Pass a supported swing mode to the selected AC."""
-        entity_id = self.config.ac_entity_id
-        if not entity_id:
+        """Pass a swing mode to every AC after validating the complete bank."""
+        entity_ids = self.config.ac_entity_ids
+        if not entity_ids:
             return False
-        state = self.hass.states.get(entity_id)
-        if state is None or swing_mode not in state.attributes.get("swing_modes", []):
+        states = [self.hass.states.get(entity_id) for entity_id in entity_ids]
+        if any(
+            state is None
+            or state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN)
+            or swing_mode not in state.attributes.get("swing_modes", [])
+            for state in states
+        ):
             return False
-        if state.attributes.get("swing_mode") == swing_mode:
-            return True
-        return await _async_call_and_confirm(
-            self.hass,
-            CLIMATE_DOMAIN,
-            "set_swing_mode",
-            {ATTR_ENTITY_ID: entity_id, "swing_mode": swing_mode},
-            entity_id,
-            lambda current: current is not None
-            and current.attributes.get("swing_mode") == swing_mode,
-        )
+        for entity_id, state in zip(entity_ids, states, strict=True):
+            if state is not None and state.attributes.get("swing_mode") == swing_mode:
+                continue
+            if not await _async_call_and_confirm(
+                self.hass,
+                CLIMATE_DOMAIN,
+                "set_swing_mode",
+                {ATTR_ENTITY_ID: entity_id, "swing_mode": swing_mode},
+                entity_id,
+                lambda current: current is not None
+                and current.attributes.get("swing_mode") == swing_mode,
+            ):
+                return False
+        return True
 
     async def _async_set_ac(self, mode: HVACMode, target_temperature: float | None) -> bool:
-        entity_id = self.config.ac_entity_id
-        if entity_id is None:
+        """Set every AC in the bank and require each one to acknowledge."""
+        entity_ids = self.config.ac_entity_ids
+        if not entity_ids:
             return mode is HVACMode.OFF
-        if not await self._async_set_climate_mode(entity_id, mode):
-            return False
-        if mode is not HVACMode.OFF and target_temperature is not None:
-            return await self._async_set_climate_temperature(entity_id, target_temperature)
+        for entity_id in entity_ids:
+            if not await self._async_set_climate_mode(entity_id, mode):
+                return False
+            if (
+                mode is not HVACMode.OFF
+                and target_temperature is not None
+                and not await self._async_set_climate_temperature(entity_id, target_temperature)
+            ):
+                return False
         return True
 
     async def _async_set_heater(self, enabled: bool, target_temperature: float) -> bool:
-        entity_id = self.config.heater_entity_id
-        if entity_id is None:
+        """Set every heater in the bank and require each one to acknowledge."""
+        entity_ids = self.config.heater_entity_ids
+        if not entity_ids:
             return not enabled
-        domain = split_entity_id(entity_id)[0]
-        if domain == CLIMATE_DOMAIN:
-            desired_mode = HVACMode.HEAT if enabled else HVACMode.OFF
-            if not await self._async_set_climate_mode(entity_id, desired_mode):
-                return False
-            if enabled:
-                return await self._async_set_climate_temperature(
+        for entity_id in entity_ids:
+            domain = split_entity_id(entity_id)[0]
+            if domain == CLIMATE_DOMAIN:
+                desired_mode = HVACMode.HEAT if enabled else HVACMode.OFF
+                if not await self._async_set_climate_mode(entity_id, desired_mode):
+                    return False
+                if enabled and not await self._async_set_climate_temperature(
                     entity_id, target_temperature + self.config.trv_target_offset
-                )
-            return True
-        if domain == "switch":
-            return await async_set_switch_confirmed(self.hass, entity_id, enabled)
-        return False
+                ):
+                    return False
+            elif domain == "switch":
+                if not await async_set_switch_confirmed(self.hass, entity_id, enabled):
+                    return False
+            else:
+                return False
+        return True
 
     async def _async_set_climate_mode(self, entity_id: str, mode: HVACMode) -> bool:
         state = self.hass.states.get(entity_id)

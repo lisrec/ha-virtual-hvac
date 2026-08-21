@@ -84,8 +84,8 @@ class RoomRuntime:
         entities.update(
             entity_id
             for entity_id in (
-                self.config.ac_entity_id,
-                self.config.heater_entity_id,
+                *self.config.ac_entity_ids,
+                *self.config.heater_entity_ids,
                 self.config.rapid_entity_id,
                 self.config.silent_entity_id,
             )
@@ -108,7 +108,7 @@ class RoomRuntime:
                 self.decision = replace(self.decision, reason="startup_neutralization_failed")
                 self._publish()
                 return False
-            if self.config.ac_entity_id is not None:
+            if self.config.ac_entity_ids:
                 self._timestamps.record(self._ac_timestamp_key)
             self._timestamps.record(self._output_timestamp_key)
             if not await self._inputs_authoritative():
@@ -227,13 +227,17 @@ class RoomRuntime:
     def supported_virtual_modes(self) -> list[VirtualMode]:
         """Derive modes from currently configured and supported actuators."""
         result = [VirtualMode.OFF]
-        if self.config.heater_entity_id is not None:
+        if self.config.heater_entity_ids:
             result.append(VirtualMode.HEAT)
-        ac_modes: list[str] = []
-        if self.config.ac_entity_id is not None:
-            state = self.hass.states.get(self.config.ac_entity_id)
-            if state is not None:
-                ac_modes = list(state.attributes.get("hvac_modes", []))
+        if self.config.ac_entity_ids:
+            states = [self.hass.states.get(entity_id) for entity_id in self.config.ac_entity_ids]
+            if any(state is None for state in states):
+                return result
+            ac_modes = set(
+                states[0].attributes.get("hvac_modes", [])  # type: ignore[union-attr]
+            )
+            for state in states[1:]:
+                ac_modes.intersection_update(state.attributes.get("hvac_modes", []))  # type: ignore[union-attr]
             result.extend(
                 mode
                 for mode in (
@@ -363,7 +367,7 @@ class RoomRuntime:
         if confirmed_at is not None and not actuation.success:
             # A failed path may have partially actuated before confirmed neutralization.
             self._timestamps.record(self._output_timestamp_key, confirmed_at)
-            if self.config.ac_entity_id is not None:
+            if self.config.ac_entity_ids:
                 self._timestamps.record(self._ac_timestamp_key, confirmed_at)
         elif confirmed_at is not None and decision.output_mode != previous_output:
             self._timestamps.record(self._output_timestamp_key, confirmed_at)
@@ -406,9 +410,10 @@ class RoomRuntime:
         return None if indeterminate else False
 
     def _physical_ac_active(self) -> bool:
-        entity_id = self.config.ac_entity_id
-        state = self.hass.states.get(entity_id) if entity_id is not None else None
-        return self._ac_compressor_active(state) is True
+        return any(
+            self._ac_compressor_active(self.hass.states.get(entity_id)) is True
+            for entity_id in self.config.ac_entity_ids
+        )
 
     @staticmethod
     def _ac_compressor_active(state: State | None) -> bool | None:
@@ -425,54 +430,53 @@ class RoomRuntime:
             OutputMode.FAN_ONLY: "fan_only",
             OutputMode.HEAT_ASSIST: "heat",
         }.get(output, STATE_OFF)
-        ac_state = (
-            self.hass.states.get(self.config.ac_entity_id)
-            if self.config.ac_entity_id is not None
-            else None
-        )
-        if ac_state is not None and ac_state.state != ac_expected:
-            return False
-        heater_state = (
-            self.hass.states.get(self.config.heater_entity_id)
-            if self.config.heater_entity_id is not None
-            else None
-        )
+        for entity_id in self.config.ac_entity_ids:
+            ac_state = self.hass.states.get(entity_id)
+            if ac_state is None or ac_state.state != ac_expected:
+                return False
         heater_expected_on = output in (OutputMode.HEAT, OutputMode.HEAT_ASSIST)
-        if heater_state is not None:
+        for entity_id in self.config.heater_entity_ids:
+            heater_state = self.hass.states.get(entity_id)
+            if heater_state is None:
+                return False
             heater_is_on = heater_state.state in (STATE_ON, "heat")
             if heater_is_on != heater_expected_on:
                 return False
         active = output is not OutputMode.OFF
-        for entity_id, expected in (
+        for optional_entity_id, expected in (
             (self.config.rapid_entity_id, active and self.decision.rapid),
             (self.config.silent_entity_id, active and self.decision.silent),
         ):
-            state = self.hass.states.get(entity_id) if entity_id is not None else None
+            state = (
+                self.hass.states.get(optional_entity_id) if optional_entity_id is not None else None
+            )
             if state is not None and (state.state == STATE_ON) != expected:
                 return False
         return True
 
     def _ac_off_elapsed(self, now: datetime) -> float:
-        entity_id = self.config.ac_entity_id
-        if entity_id is None:
+        if not self.config.ac_entity_ids:
             return math.inf
-        state = self.hass.states.get(entity_id)
-        compressor_active = self._ac_compressor_active(state)
-        if compressor_active is None:
+        compressor_states = [
+            self._ac_compressor_active(self.hass.states.get(entity_id))
+            for entity_id in self.config.ac_entity_ids
+        ]
+        if any(active is None for active in compressor_states):
             return 0.0
-        if compressor_active:
+        if any(compressor_states):
             return math.inf
         return self._timestamps.elapsed(self._ac_timestamp_key, now)
 
     def _ac_on_elapsed(self, now: datetime) -> float:
-        entity_id = self.config.ac_entity_id
-        if entity_id is None:
+        if not self.config.ac_entity_ids:
             return math.inf
-        state = self.hass.states.get(entity_id)
-        compressor_active = self._ac_compressor_active(state)
-        if compressor_active is None:
+        compressor_states = [
+            self._ac_compressor_active(self.hass.states.get(entity_id))
+            for entity_id in self.config.ac_entity_ids
+        ]
+        if any(active is None for active in compressor_states):
             return 0.0
-        if not compressor_active:
+        if not any(compressor_states):
             return math.inf
         return self._timestamps.elapsed(self._ac_timestamp_key, now)
 

@@ -25,7 +25,7 @@ def room_config(**overrides: object) -> RoomConfig:
     values: dict[str, object] = {
         "name": "Room",
         "temperature_sensor_entity_ids": ("sensor.temperature",),
-        "heater_entity_id": "switch.heater",
+        "heater_entity_ids": ("switch.heater",),
     }
     values.update(overrides)
     return RoomConfig(**values)  # type: ignore[arg-type]
@@ -60,7 +60,7 @@ def test_room_rejects_unsafe_boundary_settings(overrides: dict[str, object], mes
 
 
 def fake_room(output: OutputMode, *, status: str = "test") -> SimpleNamespace:
-    config = room_config(ac_entity_id="climate.ac")
+    config = room_config(ac_entity_ids=("climate.ac",))
     return SimpleNamespace(
         subentry_id="room-id",
         config=config,
@@ -119,7 +119,7 @@ def test_climate_capabilities_omit_unavailable_fan_and_swing_modes(hass) -> None
 def test_climate_attributes_count_only_authoritative_temperature_sources(hass) -> None:
     room = fake_room(OutputMode.OFF)
     room.config = room_config(
-        ac_entity_id="climate.ac",
+        ac_entity_ids=("climate.ac",),
         temperature_sensor_entity_ids=("sensor.good", "sensor.unknown", "sensor.missing"),
     )
     entity = VirtualRoomClimate("entry-id", room)

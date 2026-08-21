@@ -111,8 +111,8 @@ def _room_diagnostics(config: RoomConfig, runtime: RoomRuntime | None) -> dict[s
         "window_sensor_count": len(config.window_entity_ids),
         "configured_inputs": {"window": bool(config.window_entity_ids)},
         "configured_outputs": {
-            "ac": config.ac_entity_id is not None,
-            "heater": config.heater_entity_id is not None,
+            "ac": bool(config.ac_entity_ids),
+            "heater": bool(config.heater_entity_ids),
             "rapid": config.rapid_entity_id is not None,
             "silent": config.silent_entity_id is not None,
         },
