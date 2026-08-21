@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryError
+from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr
 
 from .const import (
@@ -30,7 +30,7 @@ from .const import (
     WindowOpenBehavior,
 )
 from .models import ControllerConfig, RoomConfig, validate_output_ownership
-from .runtime import ControllerRuntime
+from .runtime import ControllerRuntime, StartupNotReadyError
 
 VirtualHVACConfigEntry = ConfigEntry[ControllerRuntime]
 
@@ -123,6 +123,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: VirtualHVACConfigEntry) 
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
         forwarded = True
         await runtime.async_finish_startup()
+    except StartupNotReadyError as err:
+        safe = await runtime.async_stop()
+        if not safe:
+            await runtime.async_abort_startup()
+        if forwarded:
+            await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+        entry.runtime_data = None  # type: ignore[assignment]
+        raise ConfigEntryNotReady(
+            "Required physical states are not authoritative or outputs could not be confirmed OFF"
+        ) from err
     except Exception as err:
         safe = await runtime.async_stop()
         if forwarded:

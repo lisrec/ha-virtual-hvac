@@ -30,6 +30,12 @@ from .protection import ProtectionTimestamps
 from .temperature import average_valid_temperatures
 
 Listener = Callable[[], None]
+
+
+class StartupNotReadyError(RuntimeError):
+    """A startup safety barrier cannot be completed yet."""
+
+
 _AC_ACTIVE_MODES = {OutputMode.COOL, OutputMode.DRY, OutputMode.HEAT_ASSIST}
 _AC_COMPRESSOR_INACTIVE_STATES = {STATE_OFF, "fan_only"}
 
@@ -557,15 +563,27 @@ class ControllerRuntime:
     async def async_finish_startup(self) -> None:
         """Neutralize shared/room outputs before arming restored room intent."""
         if not await self._async_neutralize_shared("startup"):
-            raise RuntimeError("shared heat source startup neutralization failed")
+            raise StartupNotReadyError("shared heat source startup barrier is not ready")
         for room in self.rooms.values():
             if not await room.async_finish_startup():
                 await self._async_neutralize_all()
-                raise RuntimeError(
-                    f"room {room.subentry_id} startup barrier could not be satisfied"
-                )
+                raise StartupNotReadyError(f"room {room.subentry_id} startup barrier is not ready")
         self._startup_complete = True
         await self.async_evaluate_shared_heat_source()
+
+    async def async_abort_startup(self) -> None:
+        """Remove a failed startup runtime without more physical calls."""
+        self._stopping = True
+        self._startup_complete = False
+        self._shared_generation += 1
+        if self._remove_shared_listener is not None:
+            self._remove_shared_listener()
+            self._remove_shared_listener = None
+        self._cancel_shared_retry()
+        for room in self.rooms.values():
+            await room.async_stop(neutralize=False)
+        self._listeners.clear()
+        await self._timestamps.async_flush()
 
     async def async_stop(self) -> bool:
         """Refuse unload if any physically reachable output cannot confirm neutral."""

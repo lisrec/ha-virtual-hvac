@@ -18,7 +18,7 @@ from homeassistant.components.climate import (
 from homeassistant.components.climate import (
     DOMAIN as CLIMATE_DOMAIN,
 )
-from homeassistant.config_entries import ConfigSubentry
+from homeassistant.config_entries import ConfigEntryState, ConfigSubentry
 from homeassistant.const import ATTR_ENTITY_ID, EVENT_CALL_SERVICE, STATE_OFF, STATE_ON
 from homeassistant.core import callback
 from homeassistant.helpers import entity_registry as er
@@ -199,6 +199,57 @@ async def test_setup_creates_room_and_controller_entities(hass) -> None:
     )
     assert aggregate_id is not None
     assert hass.states.get(aggregate_id).state == STATE_OFF
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("not_ready_state", ["unknown", "unavailable"])
+async def test_setup_retries_when_shared_output_is_temporarily_unavailable(
+    hass, not_ready_state
+) -> None:
+    set_source_states(hass)
+    hass.states.async_set("switch.test_heat_source", not_ready_state)
+    entry, _subentry = make_entry()
+    entry.add_to_hass(hass)
+
+    assert not await hass.config_entries.async_setup(entry.entry_id)
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+    assert getattr(entry, "runtime_data", None) is None
+
+
+@pytest.mark.asyncio
+async def test_setup_retry_loads_entry_after_outputs_return(hass) -> None:
+    set_source_states(hass)
+    hass.states.async_set("switch.test_heat_source", "unavailable")
+    entry, subentry = make_entry()
+    entry.add_to_hass(hass)
+
+    assert not await hass.config_entries.async_setup(entry.entry_id)
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+
+    entry.async_cancel_retry_setup()
+    set_source_states(hass)
+    entry._async_setup_again(hass)
+    await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert entry.runtime_data is not None
+    climate_id = entity_id(hass, "climate", entry, subentry, "climate")
+    assert hass.states.get(climate_id).state == HVACMode.OFF
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("not_ready_state", ["unknown", "unavailable"])
+async def test_setup_retries_when_room_output_is_temporarily_unavailable(
+    hass, not_ready_state
+) -> None:
+    set_source_states(hass)
+    hass.states.async_set("climate.test_ac", not_ready_state)
+    entry, _subentry = make_entry()
+    entry.add_to_hass(hass)
+
+    assert not await hass.config_entries.async_setup(entry.entry_id)
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+    assert getattr(entry, "runtime_data", None) is None
 
 
 @pytest.mark.asyncio

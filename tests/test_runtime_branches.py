@@ -22,7 +22,11 @@ from custom_components.virtual_hvac.control import (
 )
 from custom_components.virtual_hvac.models import ControllerConfig, RoomConfig
 from custom_components.virtual_hvac.protection import ProtectionTimestamps
-from custom_components.virtual_hvac.runtime import ControllerRuntime, RoomRuntime
+from custom_components.virtual_hvac.runtime import (
+    ControllerRuntime,
+    RoomRuntime,
+    StartupNotReadyError,
+)
 
 
 def room_config(**overrides: object) -> RoomConfig:
@@ -479,9 +483,35 @@ async def test_controller_finish_startup_neutralizes_all_after_room_failure(
     neutralize_all = AsyncMock(return_value=True)
     monkeypatch.setattr(runtime, "_async_neutralize_all", neutralize_all)
 
-    with pytest.raises(RuntimeError, match="bad-room"):
+    with pytest.raises(StartupNotReadyError, match="bad-room"):
         await runtime.async_finish_startup()
     neutralize_all.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_controller_abort_startup_cleans_without_more_physical_calls(
+    hass, monkeypatch
+) -> None:
+    runtime = make_controller(hass, shared=False)
+    remove_shared = Mock()
+    cancel_timer = Mock()
+    listener = Mock()
+    room = SimpleNamespace(async_stop=AsyncMock(return_value=True))
+    runtime._remove_shared_listener = remove_shared
+    runtime._cancel_shared_timer = cancel_timer
+    runtime._listeners.add(listener)
+    runtime.rooms = {"room": room}
+    flush = AsyncMock()
+    monkeypatch.setattr(runtime._timestamps, "async_flush", flush)
+
+    await runtime.async_abort_startup()
+
+    remove_shared.assert_called_once()
+    cancel_timer.assert_called_once()
+    room.async_stop.assert_awaited_once_with(neutralize=False)
+    flush.assert_awaited_once()
+    assert not runtime._listeners
+    assert not runtime._startup_complete
 
 
 @pytest.mark.asyncio

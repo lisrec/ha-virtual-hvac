@@ -6,6 +6,12 @@ Migrate from an existing HVAC control arrangement without allowing two controlle
 
 Virtual HVAC has an internal startup-disarmed barrier but no user-selectable long-running shadow mode. A safe migration therefore uses non-physical test outputs for shadow observation and a separate, vendor-approved physical isolation step for first commissioning.
 
+## Upgrade from 0.4.0 to 0.4.1
+
+If a physical AC, TRV, or shared heat-source entity is temporarily `unknown` or `unavailable` during Home Assistant startup, Virtual HVAC keeps the startup barrier disarmed and enters Home Assistant's automatic `SETUP_RETRY` state. Once the required physical states become authoritative, Home Assistant retries setup and loads the integration without manual reconfigure or reload.
+
+Unknown or unavailable outputs are never treated as `off`. A permanently missing or incompatible output will therefore remain in retry until the room configuration is corrected. Normal unload still refuses cleanup when physical `off` cannot be confirmed.
+
 ## Upgrade from 0.2.x to 0.3.0
 
 Home Assistant migrates each room before setup:
