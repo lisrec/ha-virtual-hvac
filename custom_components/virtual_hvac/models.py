@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import asdict, dataclass
 from typing import Any, Self
 
 from .const import (
+    CONF_WINDOW_OPEN_DELAY,
+    DEFAULT_WINDOW_OPEN_DELAY_MINUTES,
     LEGACY_CONF_AC_ENTITY,
     LEGACY_CONF_AC_MIN_OFF,
     LEGACY_CONF_HEATER_ENTITY,
     LEGACY_CONF_WINDOW_ENTITY,
+    MAX_WINDOW_OPEN_DELAY_MINUTES,
     WindowOpenBehavior,
 )
 
@@ -59,6 +63,7 @@ class RoomConfig:
     heater_entity_ids: tuple[str, ...] = ()
     window_entity_ids: tuple[str, ...] = ()
     window_open_behavior: WindowOpenBehavior = WindowOpenBehavior.TURN_OFF_HVAC
+    window_open_delay_minutes: float = DEFAULT_WINDOW_OPEN_DELAY_MINUTES
     rapid_entity_id: str | None = None
     silent_entity_id: str | None = None
     heating_hysteresis_on: float = 0.5
@@ -80,6 +85,13 @@ class RoomConfig:
             raise ValueError("cooling delay flag must be boolean")
         if not isinstance(self.window_open_behavior, WindowOpenBehavior):
             raise ValueError("window open behavior must be a supported value")
+        if (
+            isinstance(self.window_open_delay_minutes, bool)
+            or not isinstance(self.window_open_delay_minutes, int | float)
+            or not math.isfinite(self.window_open_delay_minutes)
+            or not 0 <= self.window_open_delay_minutes <= MAX_WINDOW_OPEN_DELAY_MINUTES
+        ):
+            raise ValueError("window open delay must be between 0 and 1440 minutes")
         if not self.temperature_sensor_entity_ids:
             raise ValueError("at least one temperature sensor is required")
         if len(set(self.temperature_sensor_entity_ids)) != len(self.temperature_sensor_entity_ids):
@@ -169,6 +181,7 @@ class RoomConfig:
             values["window_entity_ids"] = ()
 
         values.setdefault("enable_safe_cooling_delay", False)
+        values.setdefault(CONF_WINDOW_OPEN_DELAY, DEFAULT_WINDOW_OPEN_DELAY_MINUTES)
         legacy_minimum_off = values.pop(LEGACY_CONF_AC_MIN_OFF, 300)
         values.setdefault("minimum_seconds_cooling_on", legacy_minimum_off)
         values.setdefault("minimum_seconds_cooling_off", legacy_minimum_off)

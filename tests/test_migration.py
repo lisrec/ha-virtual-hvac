@@ -11,7 +11,7 @@ from custom_components.virtual_hvac.const import DOMAIN, SUBENTRY_ROOM, WindowOp
 
 
 @pytest.mark.asyncio
-async def test_migrate_legacy_settings_to_minor_version_four(hass) -> None:
+async def test_migrate_legacy_settings_to_minor_version_five(hass) -> None:
     room = ConfigSubentry(
         data=MappingProxyType(
             {
@@ -51,7 +51,7 @@ async def test_migrate_legacy_settings_to_minor_version_four(hass) -> None:
     assert await async_migrate_entry(hass, entry)
 
     assert entry.version == 1
-    assert entry.minor_version == 4
+    assert entry.minor_version == 5
     assert dict(entry.data) == {
         "name": "Virtual HVAC",
         "shared_heat_source_entity_id": "switch.heat_source",
@@ -69,6 +69,7 @@ async def test_migrate_legacy_settings_to_minor_version_four(hass) -> None:
     assert migrated_room.data["ac_entity_ids"] == ["climate.ac"]
     assert migrated_room.data["heater_entity_ids"] == []
     assert migrated_room.data["window_open_behavior"] == WindowOpenBehavior.TURN_OFF_HVAC
+    assert migrated_room.data["window_open_delay_minutes"] == 5.0
 
 
 @pytest.mark.asyncio
@@ -98,12 +99,13 @@ async def test_migrate_minor_two_room_without_window_to_empty_list(hass) -> None
 
     assert await async_migrate_entry(hass, entry)
 
-    assert entry.minor_version == 4
+    assert entry.minor_version == 5
     migrated_room = next(iter(entry.subentries.values()))
     assert migrated_room.data["window_entity_ids"] == []
     assert migrated_room.data["ac_entity_ids"] == ["climate.ac"]
     assert migrated_room.data["heater_entity_ids"] == []
     assert migrated_room.data["window_open_behavior"] == WindowOpenBehavior.TURN_OFF_HVAC
+    assert migrated_room.data["window_open_delay_minutes"] == 5.0
 
 
 @pytest.mark.asyncio
@@ -138,7 +140,7 @@ async def test_migrate_multiple_rooms_and_remain_idempotent(hass) -> None:
     first_result = [dict(room.data) for room in entry.subentries.values()]
     assert await async_migrate_entry(hass, entry)
 
-    assert entry.minor_version == 4
+    assert entry.minor_version == 5
     assert [dict(room.data) for room in entry.subentries.values()] == first_result
     assert sorted(room["window_entity_ids"] for room in first_result) == [
         ["binary_sensor.window_0"],
@@ -150,6 +152,7 @@ async def test_migrate_multiple_rooms_and_remain_idempotent(hass) -> None:
         ["climate.ac_1"],
         ["climate.ac_2"],
     ]
+    assert sorted(room["window_open_delay_minutes"] for room in first_result) == [5.0, 5.0, 5.0]
 
 
 @pytest.mark.asyncio
@@ -196,7 +199,7 @@ async def test_resume_partially_completed_window_migration(hass) -> None:
     assert await async_migrate_entry(hass, entry)
 
     rooms = {room.title: room.data for room in entry.subentries.values()}
-    assert entry.minor_version == 4
+    assert entry.minor_version == 5
     assert rooms["Room A"]["window_entity_ids"] == [
         "binary_sensor.window_a1",
         "binary_sensor.window_a2",
@@ -205,6 +208,8 @@ async def test_resume_partially_completed_window_migration(hass) -> None:
     assert rooms["Room A"]["ac_entity_ids"] == ["climate.ac_a"]
     assert rooms["Room B"]["ac_entity_ids"] == ["climate.ac_b"]
     assert "window_entity_id" not in rooms["Room B"]
+    assert rooms["Room A"]["window_open_delay_minutes"] == 5.0
+    assert rooms["Room B"]["window_open_delay_minutes"] == 5.0
 
 
 @pytest.mark.asyncio
@@ -219,6 +224,7 @@ async def test_migrate_minor_three_preserves_existing_delay_choices(hass) -> Non
                 "enable_safe_cooling_delay": False,
                 "minimum_seconds_cooling_on": 11,
                 "minimum_seconds_cooling_off": 12,
+                "window_open_delay_minutes": 7.0,
             }
         ),
         subentry_type=SUBENTRY_ROOM,
@@ -242,7 +248,7 @@ async def test_migrate_minor_three_preserves_existing_delay_choices(hass) -> Non
 
     assert await async_migrate_entry(hass, entry)
 
-    assert entry.minor_version == 4
+    assert entry.minor_version == 5
     assert entry.data["enable_safe_heating_delay"] is False
     assert entry.data["minimum_seconds_heating_on"] == 13
     assert entry.data["minimum_seconds_heating_off"] == 14
@@ -250,5 +256,6 @@ async def test_migrate_minor_three_preserves_existing_delay_choices(hass) -> Non
     assert migrated_room.data["enable_safe_cooling_delay"] is False
     assert migrated_room.data["minimum_seconds_cooling_on"] == 11
     assert migrated_room.data["minimum_seconds_cooling_off"] == 12
+    assert migrated_room.data["window_open_delay_minutes"] == 7.0
     assert migrated_room.data["ac_entity_ids"] == ["climate.ac"]
     assert migrated_room.data["heater_entity_ids"] == ["climate.trv"]

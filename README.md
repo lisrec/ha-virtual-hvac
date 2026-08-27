@@ -12,7 +12,7 @@ Virtual HVAC is a local Home Assistant custom integration that presents one virt
 - Controller-level aggregate heat demand and shared heat-source status entities.
 - Temperature averaging with unit conversion and bounded reading freshness.
 - Heating and cooling hysteresis in automatic mode.
-- Multi-sensor window interlock, optional compressor minimum-on/minimum-off timing, and heat/cool reversal timing.
+- Multi-sensor window interlock with configurable per-room open-window grace periods, optional compressor minimum-on/minimum-off timing, and heat/cool reversal timing.
 - Comfort, boost, and sleep presets.
 - Optional centralized control of a shared heat-demand relay.
 - Local operation with no cloud service, telemetry, credentials, or remote API.
@@ -20,7 +20,7 @@ Virtual HVAC is a local Home Assistant custom integration that presents one virt
 
 ## Safety boundary
 
-Virtual HVAC **fails closed logically**: invalid temperature, invalid target, an open or unavailable configured window input, or an unavailable required output suppresses effective room demand and attempts to select an off state. This is not the same as a physical fail-safe.
+Virtual HVAC **fails closed logically**: invalid temperature, invalid target, an unavailable configured window input, or an unavailable required output suppresses effective room demand and attempts to select an off state. A known open window is subject to the configured per-room grace period before its selected policy suppresses outputs. This is not the same as a physical fail-safe.
 
 If an output is already energized and Home Assistant cannot reach it, software cannot guarantee that it turns off. Use only a **normally-open, low-voltage heat-demand relay** for the optional shared source. Never switch boiler mains power, burner power, pump power, or domestic-hot-water power with that output. Preserve all manufacturer controls, high-limit protection, frost protection, and independent emergency shutdowns.
 

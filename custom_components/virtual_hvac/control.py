@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import StrEnum
 
 from .const import WindowOpenBehavior
@@ -61,6 +61,7 @@ class ControlInput:
     window_open: bool | None
     ac_off_elapsed_seconds: float
     mode_elapsed_seconds: float
+    window_open_elapsed_seconds: float = 0.0
     ac_on_elapsed_seconds: float = math.inf
 
 
@@ -101,6 +102,21 @@ class RoomController:
             if inputs.window_open:
                 if self._config.window_open_behavior is WindowOpenBehavior.IGNORE_OPEN_WINDOW:
                     pass
+                elif self._window_delay_active(inputs):
+                    delayed_inputs = replace(
+                        inputs,
+                        window_configured=False,
+                        window_open=False,
+                    )
+                    normal_decision = self.decide(delayed_inputs, memory)
+                    return replace(
+                        normal_decision,
+                        reason="window_open_delay_active",
+                        retry_after_seconds=self._earliest_retry_after(
+                            normal_decision.retry_after_seconds,
+                            self._window_delay_remaining_seconds(inputs),
+                        ),
+                    )
                 elif self._config.window_open_behavior is WindowOpenBehavior.FALLBACK_TO_FAN_ONLY:
                     if not self._config.ac_entity_ids:
                         return self._off("window_fan_only_unavailable", rapid=False, silent=False)
@@ -344,6 +360,24 @@ class RoomController:
             "ac_minimum_off",
             math.ceil(self._config.minimum_seconds_cooling_off - inputs.ac_off_elapsed_seconds),
         )
+
+    def _window_delay_active(self, inputs: ControlInput) -> bool:
+        """Return whether the configured open-window grace period is still active."""
+        return self._window_delay_remaining_seconds(inputs) > 0
+
+    def _window_delay_remaining_seconds(self, inputs: ControlInput) -> int:
+        """Return conservative whole seconds remaining in the window grace period."""
+        elapsed = inputs.window_open_elapsed_seconds
+        if not math.isfinite(elapsed) or elapsed < 0:
+            elapsed = 0.0
+        return math.ceil(max(0.0, self._config.window_open_delay_minutes * 60 - elapsed))
+
+    @staticmethod
+    def _earliest_retry_after(current: int | None, candidate: int) -> int | None:
+        """Keep the earliest retry when window and compressor timers overlap."""
+        if current is None:
+            return candidate
+        return min(current, candidate)
 
     def _protected(self, reason: str, inputs: ControlInput) -> ControlDecision:
         return ControlDecision(

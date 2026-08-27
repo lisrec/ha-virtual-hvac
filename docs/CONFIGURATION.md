@@ -56,7 +56,7 @@ No physical output may be reused by another room or by the controller relay. Rap
 | Temperature sensors | Yes | One or more sensors with temperature device class or a supported temperature unit. |
 | Air-conditioning climate output | No | Climate entity used for supported cool, dry, fan-only, and optional heat-assist modes. |
 | Heater or TRV output | No | Heating climate entity, TRV, or switch. At least one AC or heater output is required. |
-| Window sensors | No | One or more binary sensors; any open sensor suppresses room outputs. |
+| Window sensors | No | One or more binary sensors; any open sensor starts the per-room grace period before the selected open-window policy is applied. |
 | Rapid-mode switch | No | Switch enabled by boost while an HVAC path is active. |
 | Silent-mode switch | No | Switch enabled by sleep while an HVAC path is active. |
 
@@ -78,7 +78,7 @@ A successful request does not prove that a TRV opened. Virtual HVAC does not cur
 
 ### Window sensors
 
-Select every window sensor that belongs to the room. Any explicit open state suppresses heating and cooling. When none is open, an unknown, unavailable, missing, or unexpected state from any selected sensor also suppresses outputs. Normal evaluation resumes only after every selected sensor explicitly reports closed; the current release has no configurable close-delay field.
+Select every window sensor that belongs to the room. Any explicit open state starts the room's `window_open_delay_minutes` grace period. During that period the current HVAC path is preserved, so a short opening does not stop cooling. After the delay expires, the selected open-window policy is applied. The default is 5 minutes; set 0 for an immediate reaction. When none is open, an unknown, unavailable, missing, or unexpected state from any selected sensor still suppresses outputs immediately. Closing every selected sensor cancels the pending reaction and restores normal evaluation.
 
 ## Room control settings
 

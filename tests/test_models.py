@@ -27,6 +27,18 @@ def test_room_defaults_disable_safe_cooling_delay() -> None:
     assert config.enable_safe_cooling_delay is False
     assert config.minimum_seconds_cooling_on == 300
     assert config.minimum_seconds_cooling_off == 300
+    assert config.window_open_delay_minutes == 5.0
+
+
+@pytest.mark.parametrize("value", [-1, 1_440.1, float("nan")])
+def test_room_rejects_invalid_window_open_delay(value: float) -> None:
+    with pytest.raises(ValueError, match="window open delay"):
+        RoomConfig(
+            name="Room",
+            temperature_sensor_entity_ids=("sensor.temperature",),
+            ac_entity_ids=("climate.ac",),
+            window_open_delay_minutes=value,
+        )
 
 
 def test_protection_flags_must_be_boolean() -> None:
@@ -219,6 +231,7 @@ def test_room_configuration_round_trips_through_mapping() -> None:
         trv_target_offset=1.5,
         boost_ac_heat_assist=True,
         window_open_behavior=WindowOpenBehavior.FALLBACK_TO_FAN_ONLY,
+        window_open_delay_minutes=7.0,
     )
     assert RoomConfig.from_mapping(expected.to_mapping()) == expected
 

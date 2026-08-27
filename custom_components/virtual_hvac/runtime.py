@@ -325,6 +325,7 @@ class RoomRuntime:
     async def _async_reconcile_once(self) -> None:
         self._cancel_retry_timer()
         now = utcnow()
+        window_open, window_open_elapsed = self._window_status(now)
         decision = self._controller.decide(
             ControlInput(
                 mode=self.mode,
@@ -332,9 +333,10 @@ class RoomRuntime:
                 target_temperature=self.target_temperature,
                 current_temperature=self.current_temperature,
                 window_configured=bool(self.config.window_entity_ids),
-                window_open=self._window_open(),
+                window_open=window_open,
                 ac_off_elapsed_seconds=self._ac_off_elapsed(now),
                 mode_elapsed_seconds=self._timestamps.elapsed(self._output_timestamp_key, now),
+                window_open_elapsed_seconds=window_open_elapsed,
                 ac_on_elapsed_seconds=self._ac_on_elapsed(now),
             ),
             self._memory,
@@ -402,19 +404,28 @@ class RoomRuntime:
             return False
         return await self._actuators.async_inputs_authoritative()
 
-    def _window_open(self) -> bool | None:
+    def _window_status(self, now: datetime) -> tuple[bool | None, float]:
+        """Return aggregated window state and elapsed time since its opening."""
         if not self.config.window_entity_ids:
-            return False
+            return False, 0.0
         indeterminate = False
+        open_since: datetime | None = None
         for entity_id in self.config.window_entity_ids:
             state = self.hass.states.get(entity_id)
             if state is None or state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE):
                 indeterminate = True
             elif state.state == STATE_ON:
-                return True
+                if open_since is None or state.last_changed < open_since:
+                    open_since = state.last_changed
             elif state.state != STATE_OFF:
                 indeterminate = True
-        return None if indeterminate else False
+        if open_since is not None:
+            return True, max(0.0, (now - open_since).total_seconds())
+        return (None if indeterminate else False), 0.0
+
+    def _window_open(self) -> bool | None:
+        """Return only the aggregated window state for safety checks and tests."""
+        return self._window_status(utcnow())[0]
 
     def _physical_ac_active(self) -> bool:
         return any(

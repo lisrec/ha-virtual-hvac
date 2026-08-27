@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import timedelta
 from types import MappingProxyType
 
 import pytest
@@ -22,13 +23,16 @@ from homeassistant.config_entries import ConfigEntryState, ConfigSubentry
 from homeassistant.const import ATTR_ENTITY_ID, EVENT_CALL_SERVICE, STATE_OFF, STATE_ON
 from homeassistant.core import callback
 from homeassistant.helpers import entity_registry as er
+from homeassistant.util.dt import utcnow
 from homeassistant.util.unit_system import US_CUSTOMARY_SYSTEM
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_mock_service
 
 from custom_components.virtual_hvac.const import DOMAIN, SUBENTRY_ROOM
 
 
-def make_entry(*, shared: bool = True) -> tuple[MockConfigEntry, ConfigSubentry]:
+def make_entry(
+    *, shared: bool = True, window_open_delay_minutes: float = 0
+) -> tuple[MockConfigEntry, ConfigSubentry]:
     room_data = {
         "name": "Test room",
         "temperature_sensor_entity_ids": [
@@ -41,6 +45,7 @@ def make_entry(*, shared: bool = True) -> tuple[MockConfigEntry, ConfigSubentry]
             "binary_sensor.test_window",
             "binary_sensor.test_second_window",
         ],
+        "window_open_delay_minutes": window_open_delay_minutes,
         "rapid_entity_id": "switch.test_rapid",
         "silent_entity_id": "switch.test_silent",
         "heating_hysteresis_on": 0.5,
@@ -379,6 +384,69 @@ async def test_boost_and_window_interlock(hass) -> None:
         call["service_data"][ATTR_ENTITY_ID] == "switch.test_heat_source"
         for call in calls
         if call["domain"] == "switch" and call["service"] == "turn_off"
+    )
+
+
+@pytest.mark.asyncio
+async def test_short_window_open_preserves_cooling_until_policy_deadline(hass) -> None:
+    set_source_states(hass)
+    hass.states.async_set(
+        "sensor.test_temperature_one",
+        "75.2",
+        {"device_class": "temperature", "unit_of_measurement": "°F"},
+    )
+    hass.states.async_set(
+        "sensor.test_temperature_two",
+        "23.0",
+        {"device_class": "temperature", "unit_of_measurement": "°C"},
+    )
+    entry, subentry = make_entry(shared=False, window_open_delay_minutes=5)
+    entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    climate_id = entity_id(hass, "climate", entry, subentry, "climate")
+    ac_state_id = "climate.test_ac"
+    room = entry.runtime_data.rooms[subentry.subentry_id]
+
+    await hass.services.async_call(
+        CLIMATE_DOMAIN,
+        SERVICE_SET_HVAC_MODE,
+        {ATTR_ENTITY_ID: climate_id, "hvac_mode": HVACMode.COOL},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+    assert hass.states.get(ac_state_id).state == HVACMode.COOL
+
+    calls: list[dict] = []
+    hass.bus.async_listen(EVENT_CALL_SERVICE, lambda event: calls.append(event.data))
+    hass.states.async_set("binary_sensor.test_window", STATE_ON)
+    await hass.async_block_till_done()
+
+    virtual_state = hass.states.get(climate_id)
+    physical_state = hass.states.get(ac_state_id)
+    assert virtual_state is not None
+    assert physical_state is not None
+    assert virtual_state.attributes[ATTR_HVAC_ACTION] == HVACAction.COOLING
+    assert virtual_state.attributes["controller_status"] == "window_open_delay_active"
+    assert physical_state.state == HVACMode.COOL
+    assert not calls
+
+    physical_window = hass.states.get("binary_sensor.test_window")
+    assert physical_window is not None
+    physical_window.last_changed = utcnow() - timedelta(minutes=5)
+    await room.async_evaluate()
+    await hass.async_block_till_done()
+
+    assert hass.states.get(ac_state_id).state == HVACMode.OFF
+    assert hass.states.get(climate_id).attributes[ATTR_HVAC_ACTION] == HVACAction.OFF
+    assert hass.states.get(climate_id).attributes["controller_status"] == "window_open"
+    assert any(
+        call["domain"] == CLIMATE_DOMAIN
+        and call["service"] == SERVICE_SET_HVAC_MODE
+        and call["service_data"][ATTR_ENTITY_ID] == ac_state_id
+        and call["service_data"]["hvac_mode"] == HVACMode.OFF
+        for call in calls
     )
 
 

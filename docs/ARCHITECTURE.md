@@ -68,8 +68,8 @@ This is **integration-local ownership**, not system-wide exclusivity. Home Assis
 
 1. A source state, virtual setting, or protection timer requests room evaluation.
 2. Fresh temperature readings are normalized to Celsius and valid finite values are averaged.
-3. Window inputs are aggregated: any open input wins; otherwise any indeterminate input makes the interlock unavailable; only all-closed is clear.
-4. Aggregated window state, virtual mode, target, preset, elapsed times, and control memory form a `ControlInput`.
+3. Window inputs are aggregated: any open input wins and supplies the earliest open timestamp; otherwise any indeterminate input makes the interlock unavailable; only all-closed is clear.
+4. Aggregated window state, open elapsed time, virtual mode, target, preset, elapsed times, and control memory form a `ControlInput`.
 5. The pure controller returns one mutually exclusive room decision.
 6. The adapter applies that decision in a conservative order.
 7. If required actuation cannot be requested, runtime clears effective demand and requests off outputs.

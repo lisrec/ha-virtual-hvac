@@ -364,6 +364,21 @@ async def test_window_and_ac_state_helpers_fail_closed(hass) -> None:
 
 
 @pytest.mark.asyncio
+async def test_window_status_reports_elapsed_open_time(hass) -> None:
+    room = make_room(hass)
+    hass.states.async_set("binary_sensor.window", STATE_ON)
+    opened_at = utcnow() - timedelta(seconds=10)
+    state = hass.states.get("binary_sensor.window")
+    assert state is not None
+    state.last_changed = opened_at
+
+    window_open, elapsed = room._window_status(utcnow())
+
+    assert window_open is True
+    assert elapsed == pytest.approx(10, abs=0.1)
+
+
+@pytest.mark.asyncio
 async def test_runtime_tracks_every_window_sensor(hass, monkeypatch) -> None:
     tracked: set[str] = set()
     room = make_room(

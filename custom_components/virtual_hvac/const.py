@@ -25,6 +25,7 @@ CONF_AC_ENTITIES = "ac_entity_ids"
 CONF_HEATER_ENTITIES = "heater_entity_ids"
 CONF_WINDOW_ENTITIES = "window_entity_ids"
 CONF_WINDOW_OPEN_BEHAVIOR = "window_open_behavior"
+CONF_WINDOW_OPEN_DELAY = "window_open_delay_minutes"
 CONF_RAPID_ENTITY = "rapid_entity_id"
 CONF_SILENT_ENTITY = "silent_entity_id"
 CONF_HEAT_HYSTERESIS_ON = "heating_hysteresis_on"
@@ -50,6 +51,8 @@ DEFAULT_CONTROLLER_NAME = "Virtual HVAC"
 DEFAULT_TARGET_TEMPERATURE = 21.0
 MIN_TARGET_TEMPERATURE = 5.0
 MAX_TARGET_TEMPERATURE = 35.0
+DEFAULT_WINDOW_OPEN_DELAY_MINUTES = 5.0
+MAX_WINDOW_OPEN_DELAY_MINUTES = 1_440.0
 
 
 class WindowOpenBehavior(StrEnum):

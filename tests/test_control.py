@@ -31,6 +31,7 @@ def decide(
     *,
     memory: ControlMemory | None = None,
     window_open: bool | None = False,
+    window_open_elapsed: float = 0.0,
     window_configured: bool = False,
     ac_off_elapsed: float = 1000,
     ac_on_elapsed: float = float("inf"),
@@ -47,6 +48,7 @@ def decide(
             current_temperature=temperature,
             window_configured=window_configured,
             window_open=window_open,
+            window_open_elapsed_seconds=window_open_elapsed,
             ac_off_elapsed_seconds=ac_off_elapsed,
             mode_elapsed_seconds=mode_elapsed,
             ac_on_elapsed_seconds=ac_on_elapsed,
@@ -70,7 +72,13 @@ def test_missing_temperature_fails_closed() -> None:
 
 
 def test_open_window_fails_closed() -> None:
-    result = decide(VirtualMode.COOL, window_configured=True, window_open=True)
+    result = decide(
+        VirtualMode.COOL,
+        window_configured=True,
+        window_open=True,
+        window_open_elapsed=300,
+        config=room_config(window_open_delay_minutes=0),
+    )
     assert result.output_mode is OutputMode.OFF
     assert result.reason == "window_open"
 
@@ -82,10 +90,70 @@ def test_open_window_falls_back_to_fan_only() -> None:
         window_open=True,
         config=room_config(
             window_open_behavior=WindowOpenBehavior.FALLBACK_TO_FAN_ONLY,
+            window_open_delay_minutes=0,
         ),
     )
     assert result.output_mode is OutputMode.FAN_ONLY
     assert result.heat_demand is False
+    assert result.reason == "window_open_fan_only"
+
+
+def test_open_window_delay_keeps_active_cooling_until_deadline() -> None:
+    result = decide(
+        VirtualMode.COOL,
+        temperature=23.0,
+        window_configured=True,
+        window_open=True,
+        window_open_elapsed=10,
+        memory=ControlMemory(cooling_active=True),
+        config=room_config(
+            window_open_delay_minutes=5,
+            minimum_seconds_cooling_on=0,
+            minimum_seconds_cooling_off=0,
+        ),
+    )
+
+    assert result.output_mode is OutputMode.COOL
+    assert result.reason == "window_open_delay_active"
+    assert result.retry_after_seconds == 290
+
+
+def test_open_window_delay_applies_turn_off_policy_after_deadline() -> None:
+    result = decide(
+        VirtualMode.COOL,
+        temperature=23.0,
+        window_configured=True,
+        window_open=True,
+        window_open_elapsed=300,
+        memory=ControlMemory(cooling_active=True),
+        config=room_config(
+            window_open_delay_minutes=5,
+            minimum_seconds_cooling_on=0,
+            minimum_seconds_cooling_off=0,
+        ),
+    )
+
+    assert result.output_mode is OutputMode.OFF
+    assert result.reason == "window_open"
+
+
+def test_open_window_delay_applies_fan_policy_after_deadline() -> None:
+    result = decide(
+        VirtualMode.COOL,
+        temperature=23.0,
+        window_configured=True,
+        window_open=True,
+        window_open_elapsed=300,
+        memory=ControlMemory(cooling_active=True),
+        config=room_config(
+            window_open_behavior=WindowOpenBehavior.FALLBACK_TO_FAN_ONLY,
+            window_open_delay_minutes=5,
+            minimum_seconds_cooling_on=0,
+            minimum_seconds_cooling_off=0,
+        ),
+    )
+
+    assert result.output_mode is OutputMode.FAN_ONLY
     assert result.reason == "window_open_fan_only"
 
 

@@ -18,6 +18,8 @@ from .const import (
     CONF_MIN_HEATING_ON,
     CONF_WINDOW_ENTITIES,
     CONF_WINDOW_OPEN_BEHAVIOR,
+    CONF_WINDOW_OPEN_DELAY,
+    DEFAULT_WINDOW_OPEN_DELAY_MINUTES,
     DOMAIN,
     LEGACY_CONF_AC_ENTITY,
     LEGACY_CONF_AC_MIN_OFF,
@@ -39,7 +41,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: VirtualHVACConfigEntry
     """Migrate legacy protection and window fields to the current contract."""
     if entry.version != 1:
         return False
-    if entry.minor_version >= 4:
+    if entry.minor_version >= 5:
         return True
 
     controller_data = dict(entry.data)
@@ -69,6 +71,8 @@ async def async_migrate_entry(hass: HomeAssistant, entry: VirtualHVACConfigEntry
         else:
             room_data.setdefault(CONF_ENABLE_SAFE_COOLING_DELAY, True)
 
+        room_data.setdefault(CONF_WINDOW_OPEN_DELAY, DEFAULT_WINDOW_OPEN_DELAY_MINUTES)
+
         if entry.minor_version < 4:
             legacy_ac = room_data.pop(LEGACY_CONF_AC_ENTITY, None)
             room_data.setdefault(
@@ -90,7 +94,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: VirtualHVACConfigEntry
         entry,
         data=controller_data,
         version=1,
-        minor_version=4,
+        minor_version=5,
     )
     return True
 

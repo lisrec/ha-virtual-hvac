@@ -47,10 +47,10 @@ The following checks happen before mode-specific decisions:
 1. No valid current temperature → off, `no_valid_temperature`.
 2. Non-finite target → off, `invalid_target`.
 3. Configured window input missing, unknown, or unavailable → off, `window_unavailable`.
-4. Configured window open → off, `window_open`.
+4. Configured window open → preserve the current HVAC decision during `window_open_delay_minutes`; after the delay, apply the configured policy and report `window_open` or `window_open_fan_only`.
 5. Virtual mode off → off, `mode_off`.
 
-Rapid and silent outputs are also suppressed during these interlocks.
+Rapid and silent outputs are also suppressed during these interlocks. Unknown or unavailable window input is never delayed and remains fail-closed.
 
 ## Heating hysteresis
 
@@ -139,7 +139,7 @@ When enabled, safe cooling delay applies both configured intervals:
 - before cool or dry starts, the compressor must have remained inactive for at least the minimum cooling off interval; both AC off and fan-only count as compressor-inactive states, otherwise output remains off with `ac_minimum_off` and a retry is scheduled;
 - when automatic temperature control would end cooling, cooling remains active until the minimum cooling on interval expires, with `ac_minimum_on` and a retry.
 
-Explicit virtual off, an open or unavailable configured window, invalid temperature input, and heat/cool interlocks remain fail-closed and are not delayed merely to satisfy minimum cooling on time.
+Explicit virtual off, an unavailable configured window, invalid temperature input, and heat/cool interlocks remain fail-closed and are not delayed merely to satisfy minimum cooling on time. A known open window follows only its separate per-room grace period.
 
 Elapsed time comes from an integration-owned wall-clock timestamp recorded after confirmed integration-owned AC active/inactive transitions and persisted privately across restart. Every successful startup neutralization records a fresh conservative off baseline, including when the AC already reports off, so minimum-off can finish without trusting an ambiguous historical transition. Missing, corrupt, or future timestamps otherwise yield zero elapsed time and therefore the full conservative delay. Missing, unknown, or unavailable AC state also prevents startup arming or yields conservative delay. External writers are unsupported and can invalidate timer assumptions.
 
@@ -188,7 +188,7 @@ Common room status values include:
 
 - normal selection: `explicit_cool`, `explicit_dry`, `explicit_fan_only`, `heat_demand`, `auto_heat`, `auto_cool`, `auto_continue_heat`, `auto_continue_cool`;
 - satisfied or idle: `cool_target_satisfied`, `mode_off`, `heat_target_satisfied`, `auto_dead_band`;
-- startup, shutdown, or interlock: `startup_disarmed`, `startup_inputs_not_authoritative`, `startup_neutralization_failed`, `shutdown_neutralized`, `no_valid_temperature`, `invalid_target`, `window_open`, `window_unavailable`, `ac_minimum_on`, `ac_minimum_off`, `mode_reversal_guard`;
+- startup, shutdown, or interlock: `startup_disarmed`, `startup_inputs_not_authoritative`, `startup_neutralization_failed`, `shutdown_neutralized`, `no_valid_temperature`, `invalid_target`, `window_open`, `window_open_delay_active`, `window_unavailable`, `ac_minimum_on`, `ac_minimum_off`, `mode_reversal_guard`;
 - output fault: `ac_heat_assist_not_confirmed`, `ac_stop_not_confirmed`, `ac_stop_or_start_not_confirmed`, `heater_start_not_confirmed`, `heater_stop_not_confirmed`, `neutralization_not_confirmed`, `preset_output_not_confirmed`, `stale_command_neutralization_failed`, `service_call_failed`.
 
 Unknown arbitrary text is not included in downloadable diagnostics.

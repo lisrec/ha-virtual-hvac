@@ -58,8 +58,10 @@ from .const import (
     CONF_TRV_OFFSET,
     CONF_WINDOW_ENTITIES,
     CONF_WINDOW_OPEN_BEHAVIOR,
+    CONF_WINDOW_OPEN_DELAY,
     DEFAULT_CONTROLLER_NAME,
     DOMAIN,
+    MAX_WINDOW_OPEN_DELAY_MINUTES,
     SUBENTRY_ROOM,
     WindowOpenBehavior,
 )
@@ -152,6 +154,10 @@ def _room_schema(defaults: Mapping[str, Any] | None = None) -> vol.Schema:
                     mode=SelectSelectorMode.DROPDOWN,
                 )
             ),
+            vol.Required(
+                CONF_WINDOW_OPEN_DELAY,
+                default=values.get(CONF_WINDOW_OPEN_DELAY, 5.0),
+            ): _number_selector(0, MAX_WINDOW_OPEN_DELAY_MINUTES, 1, "min"),
             vol.Optional(
                 CONF_RAPID_ENTITY,
                 description={"suggested_value": values.get(CONF_RAPID_ENTITY)},
@@ -213,7 +219,7 @@ class VirtualHVACConfigFlow(ConfigFlow, domain=DOMAIN):
     """Configure the singleton Virtual HVAC controller."""
 
     VERSION = 1
-    MINOR_VERSION = 4
+    MINOR_VERSION = 5
 
     @classmethod
     @callback
@@ -317,6 +323,7 @@ class RoomSubentryFlow(ConfigSubentryFlow):
                     stored[CONF_HEATER_ENTITIES] = list(room.heater_entity_ids)
                     stored[CONF_WINDOW_ENTITIES] = list(room.window_entity_ids)
                     stored[CONF_WINDOW_OPEN_BEHAVIOR] = room.window_open_behavior.value
+                    stored[CONF_WINDOW_OPEN_DELAY] = room.window_open_delay_minutes
                     if current is not None:
                         return self.async_update_and_abort(
                             entry, current, title=room.name, data=stored

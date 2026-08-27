@@ -83,7 +83,8 @@
             "temperature_sensor_entity_ids": "Temperature sensors",
             "temperature_sensor_max_age_seconds": "Temperature reading maximum age",
             "trv_target_offset": "TRV target offset",
-            "window_entity_ids": "Window sensors"
+            "window_entity_ids": "Window sensors",
+            "window_open_delay_minutes": "Open-window reaction delay"
           },
           "data_description": {
             "ac_entity_ids": "Optional one or more climate entities. All selected ACs receive the same cooling, dry, fan-only, and heat-assist commands; only capabilities shared by every selected AC are exposed.",
@@ -103,7 +104,8 @@
             "temperature_sensor_entity_ids": "One or more temperature entities. Valid fresh readings are converted to Celsius and averaged.",
             "temperature_sensor_max_age_seconds": "Maximum reading age in seconds, from 1 to 604800. The default is 300 seconds.",
             "trv_target_offset": "Degrees added to the virtual target sent to a heating climate entity or TRV.",
-            "window_entity_ids": "Optional one or more binary sensors. Any open sensor suppresses room outputs. If none is open, any unknown, unavailable, missing, or unexpected state also suppresses outputs."
+            "window_entity_ids": "Optional one or more binary sensors. Any open sensor starts the configured grace period. If none is open, any unknown, unavailable, missing, or unexpected state also suppresses outputs.",
+            "window_open_delay_minutes": "Minutes to keep the current HVAC path after a window opens before applying the selected open-window policy. The default is 5 minutes; set 0 for immediate reaction."
           },
           "description": "Update one room. Use outputs dedicated to this controller and remove competing writers before arming it. Confirm TRV readiness and provide a hydraulic bypass or equivalent safe flow path where the heating system requires one.",
           "title": "Reconfigure room"
@@ -127,7 +129,8 @@
             "temperature_sensor_entity_ids": "Temperature sensors",
             "temperature_sensor_max_age_seconds": "Temperature reading maximum age",
             "trv_target_offset": "TRV target offset",
-            "window_entity_ids": "Window sensors"
+            "window_entity_ids": "Window sensors",
+            "window_open_delay_minutes": "Open-window reaction delay"
           },
           "data_description": {
             "ac_entity_ids": "Optional one or more climate entities. All selected ACs receive the same cooling, dry, fan-only, and heat-assist commands; only capabilities shared by every selected AC are exposed.",
@@ -147,7 +150,8 @@
             "temperature_sensor_entity_ids": "One or more temperature entities. Valid fresh readings are converted to Celsius and averaged.",
             "temperature_sensor_max_age_seconds": "Maximum reading age in seconds, from 1 to 604800. The default is 300 seconds.",
             "trv_target_offset": "Degrees added to the virtual target sent to a heating climate entity or TRV.",
-            "window_entity_ids": "Optional one or more binary sensors. Any open sensor suppresses room outputs. If none is open, any unknown, unavailable, missing, or unexpected state also suppresses outputs."
+            "window_entity_ids": "Optional one or more binary sensors. Any open sensor starts the configured grace period. If none is open, any unknown, unavailable, missing, or unexpected state also suppresses outputs.",
+            "window_open_delay_minutes": "Minutes to keep the current HVAC path after a window opens before applying the selected open-window policy. The default is 5 minutes; set 0 for immediate reaction."
           },
           "description": "Add one room. Use outputs dedicated to this controller and remove competing writers before arming it. Confirm TRV readiness and provide a hydraulic bypass or equivalent safe flow path where the heating system requires one.",
           "title": "Add room"

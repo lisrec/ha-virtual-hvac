@@ -24,6 +24,7 @@ ROOM_DATA = {
     "heater_entity_ids": ["climate.test_heater", "climate.test_heater_two"],
     "window_entity_ids": ["binary_sensor.window_one", "binary_sensor.window_two"],
     "window_open_behavior": WindowOpenBehavior.TURN_OFF_HVAC,
+    "window_open_delay_minutes": 5,
     "heating_hysteresis_on": 0.5,
     "heating_hysteresis_off": 0.3,
     "cooling_hysteresis_on": 0.5,
@@ -128,6 +129,10 @@ async def test_room_subentry_flow_creates_room(hass) -> None:
     assert window_behavior_selector.config["options"] == [
         value.value for value in WindowOpenBehavior
     ]
+    window_delay_key = next(
+        key for key in result["data_schema"].schema if key.schema == "window_open_delay_minutes"
+    )
+    assert window_delay_key.default() == 5.0
     assert (
         next(
             key.default()
@@ -148,6 +153,7 @@ async def test_room_subentry_flow_creates_room(hass) -> None:
         "binary_sensor.window_one",
         "binary_sensor.window_two",
     ]
+    assert subentry.data["window_open_delay_minutes"] == 5.0
     assert subentry.unique_id is not None
 
 

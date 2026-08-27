@@ -14,7 +14,7 @@ Virtual HVAC clears effective heat demand and requests off outputs when required
 
 - no valid finite temperature;
 - an invalid target;
-- an open, missing, unknown, or unavailable configured window input;
+- a missing, unknown, or unavailable configured window input; a known open input is delayed only by its explicit per-room grace period;
 - an unavailable or unsupported required output;
 - a Home Assistant service-call failure.
 

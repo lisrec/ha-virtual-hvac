@@ -148,6 +148,7 @@ async def test_diagnostics_redact_identifiers_but_expose_safe_structure(hass) ->
                     "heating_hysteresis_off": 0.3,
                     "cooling_hysteresis_on": 0.6,
                     "cooling_hysteresis_off": 0.4,
+                    "window_open_delay_minutes": 5.0,
                     "enable_safe_cooling_delay": True,
                     "minimum_seconds_cooling_on": 300,
                     "minimum_seconds_cooling_off": 300,

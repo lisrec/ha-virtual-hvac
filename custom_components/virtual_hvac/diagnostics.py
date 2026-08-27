@@ -46,6 +46,7 @@ _SAFE_ROOM_STATUSES = frozenset(
         "startup_inputs_not_authoritative",
         "startup_neutralization_failed",
         "window_open",
+        "window_open_delay_active",
         "window_unavailable",
     }
 )
@@ -122,6 +123,7 @@ def _room_diagnostics(config: RoomConfig, runtime: RoomRuntime | None) -> dict[s
             "heating_hysteresis_off": config.heating_hysteresis_off,
             "cooling_hysteresis_on": config.cooling_hysteresis_on,
             "cooling_hysteresis_off": config.cooling_hysteresis_off,
+            "window_open_delay_minutes": config.window_open_delay_minutes,
             "enable_safe_cooling_delay": config.enable_safe_cooling_delay,
             "minimum_seconds_cooling_on": config.minimum_seconds_cooling_on,
             "minimum_seconds_cooling_off": config.minimum_seconds_cooling_off,
