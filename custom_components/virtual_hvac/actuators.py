@@ -5,10 +5,13 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
-from math import isclose
+from math import ceil, floor, isclose, isfinite
 
 from homeassistant.components.climate import (
     ATTR_HVAC_MODE,
+    ATTR_MAX_TEMP,
+    ATTR_MIN_TEMP,
+    ATTR_TARGET_TEMP_STEP,
     ATTR_TEMPERATURE,
     SERVICE_SET_HVAC_MODE,
     SERVICE_SET_TEMPERATURE,
@@ -87,6 +90,108 @@ async def _async_call_and_confirm(
     except (HomeAssistantError, TimeoutError):
         return False
     return await _async_wait_for_state(hass, entity_id, predicate)
+
+
+def _as_finite_float(value: object) -> float | None:
+    """Convert a climate attribute to a finite number when possible."""
+    if isinstance(value, bool) or not isinstance(value, float | int | str):
+        return None
+    try:
+        number = float(value)
+    except (OverflowError, TypeError, ValueError):
+        return None
+    return number if isfinite(number) else None
+
+
+def _climate_temperature_bounds(state: State) -> tuple[float | None, float | None]:
+    """Return valid physical temperature bounds, ignoring malformed metadata."""
+    minimum = _as_finite_float(state.attributes.get(ATTR_MIN_TEMP))
+    maximum = _as_finite_float(state.attributes.get(ATTR_MAX_TEMP))
+    if minimum is not None and maximum is not None and minimum > maximum:
+        return None, None
+    return minimum, maximum
+
+
+def _bound_climate_temperature(state: State, temperature: float) -> float | None:
+    """Keep a command inside the physical climate's reported range."""
+    value = _as_finite_float(temperature)
+    if value is None:
+        return None
+    minimum, maximum = _climate_temperature_bounds(state)
+    if minimum is not None:
+        value = max(value, minimum)
+    if maximum is not None:
+        value = min(value, maximum)
+    return value
+
+
+def _climate_grid_neighbors(state: State, temperature: float) -> tuple[float, ...]:
+    """Return the lower and upper values on the physical climate's target grid."""
+    step = _as_finite_float(state.attributes.get(ATTR_TARGET_TEMP_STEP))
+    if step is None or step <= 0:
+        return ()
+    minimum, maximum = _climate_temperature_bounds(state)
+    origin = minimum if minimum is not None else 0.0
+    scaled = (temperature - origin) / step
+    lower = origin + floor(scaled) * step
+    upper = origin + ceil(scaled) * step
+    values = (lower, upper)
+    bounded: list[float] = []
+    for value in values:
+        if minimum is not None:
+            value = max(value, minimum)
+        if maximum is not None:
+            value = min(value, maximum)
+        value = round(value, 6)
+        if value not in bounded:
+            bounded.append(value)
+    return tuple(bounded)
+
+
+def _climate_temperature_candidates(state: State, temperature: float) -> tuple[float, ...]:
+    """Return exact and device-quantized values valid for acknowledgement."""
+    bounded = _bound_climate_temperature(state, temperature)
+    if bounded is None:
+        return ()
+
+    candidates = [round(bounded, 6)]
+    candidates.extend(_climate_grid_neighbors(state, bounded))
+
+    # Some climate integrations round to whole degrees without exposing a step.
+    if not isclose(bounded, round(bounded), abs_tol=0.01, rel_tol=0.0):
+        candidates.extend((floor(bounded), ceil(bounded)))
+
+    minimum, maximum = _climate_temperature_bounds(state)
+    result: list[float] = []
+    for value in candidates:
+        if minimum is not None:
+            value = max(value, minimum)
+        if maximum is not None:
+            value = min(value, maximum)
+        value = round(value, 6)
+        if value not in result:
+            result.append(value)
+    return tuple(result)
+
+
+def _climate_temperature_acknowledged(reported: object, candidates: tuple[float, ...]) -> bool:
+    """Accept exact or device-quantized feedback, but not unrelated values."""
+    value = _as_finite_float(reported)
+    return value is not None and any(
+        isclose(value, candidate, abs_tol=0.01, rel_tol=0.0) for candidate in candidates
+    )
+
+
+def _climate_command_temperature(state: State, temperature: float) -> float | None:
+    """Choose a deterministic on-grid command while retaining the virtual target."""
+    bounded = _bound_climate_temperature(state, temperature)
+    if bounded is None:
+        return None
+    grid = _climate_grid_neighbors(state, bounded)
+    if not grid:
+        return bounded
+    # On an exact half-step tie, choose the lower value; feedback accepts either side.
+    return min(grid, key=lambda value: (abs(value - bounded), value))
 
 
 async def async_set_switch_confirmed(hass: HomeAssistant, entity_id: str, enabled: bool) -> bool:
@@ -294,21 +399,26 @@ class ActuatorAdapter:
         )
 
     async def _async_set_climate_temperature(self, entity_id: str, temperature: float) -> bool:
+        """Set a climate target and accept its reported precision/rounding."""
         state = self.hass.states.get(entity_id)
         if state is None or state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
             return False
-        current = state.attributes.get(ATTR_TEMPERATURE)
-        if isinstance(current, int | float) and isclose(float(current), temperature, abs_tol=0.01):
+        candidates = _climate_temperature_candidates(state, temperature)
+        command_temperature = _climate_command_temperature(state, temperature)
+        if not candidates or command_temperature is None:
+            return False
+        if _climate_temperature_acknowledged(state.attributes.get(ATTR_TEMPERATURE), candidates):
             return True
         return await _async_call_and_confirm(
             self.hass,
             CLIMATE_DOMAIN,
             SERVICE_SET_TEMPERATURE,
-            {ATTR_ENTITY_ID: entity_id, ATTR_TEMPERATURE: temperature},
+            {ATTR_ENTITY_ID: entity_id, ATTR_TEMPERATURE: command_temperature},
             entity_id,
             lambda updated: updated is not None
-            and isinstance(updated.attributes.get(ATTR_TEMPERATURE), int | float)
-            and isclose(float(updated.attributes[ATTR_TEMPERATURE]), temperature, abs_tol=0.01),
+            and _climate_temperature_acknowledged(
+                updated.attributes.get(ATTR_TEMPERATURE), candidates
+            ),
         )
 
     async def _async_set_presets(self, rapid: bool, silent: bool) -> bool:

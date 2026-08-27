@@ -81,6 +81,142 @@ async def test_switch_service_error_is_reported_as_unconfirmed(hass) -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("reported_temperature", "target_temp_step", "expected_command"),
+    [
+        (22.0, 1.0, 22.0),
+        (23.0, 1.0, 22.0),
+        (22.5, 0.5, 22.5),
+        (22.0, None, 22.5),
+        (23.0, None, 22.5),
+    ],
+)
+async def test_temperature_ack_accepts_device_precision_and_rounding(
+    hass, reported_temperature, target_temp_step, expected_command
+) -> None:
+    """A physical climate may quantize a fractional request in either direction."""
+    adapter = ActuatorAdapter(hass, room_config())
+    hass.states.async_set(
+        "climate.ac",
+        HVACMode.COOL,
+        {
+            "target_temp_step": target_temp_step,
+            ATTR_TEMPERATURE: 21.0,
+        },
+    )
+    calls = []
+
+    async def set_temperature(call) -> None:
+        calls.append(call.data[ATTR_TEMPERATURE])
+        old = hass.states.get("climate.ac")
+        assert old is not None
+        hass.states.async_set(
+            "climate.ac",
+            old.state,
+            old.attributes | {ATTR_TEMPERATURE: reported_temperature},
+        )
+
+    hass.services.async_register("climate", "set_temperature", set_temperature)
+
+    assert await adapter._async_set_climate_temperature("climate.ac", 22.5)
+    assert calls == [expected_command]
+
+
+@pytest.mark.asyncio
+async def test_temperature_command_clamps_to_physical_bounds(hass) -> None:
+    adapter = ActuatorAdapter(hass, room_config())
+    hass.states.async_set(
+        "climate.ac",
+        HVACMode.COOL,
+        {
+            "target_temp_step": 1.0,
+            "min_temp": 18.0,
+            "max_temp": 30.0,
+            ATTR_TEMPERATURE: 21.0,
+        },
+    )
+    calls = []
+
+    async def set_temperature(call) -> None:
+        calls.append(call.data[ATTR_TEMPERATURE])
+        old = hass.states.get("climate.ac")
+        assert old is not None
+        hass.states.async_set(
+            "climate.ac",
+            old.state,
+            old.attributes | {ATTR_TEMPERATURE: 30.0},
+        )
+
+    hass.services.async_register("climate", "set_temperature", set_temperature)
+
+    assert await adapter._async_set_climate_temperature("climate.ac", 35.0)
+    assert calls == [30.0]
+
+
+@pytest.mark.asyncio
+async def test_ac_bank_handles_different_physical_temperature_steps(hass) -> None:
+    adapter = ActuatorAdapter(
+        hass,
+        room_config(
+            ac_entity_ids=("climate.ac_integer", "climate.ac_fractional"),
+            heater_entity_ids=(),
+        ),
+    )
+    for entity_id, step in (("climate.ac_integer", 1.0), ("climate.ac_fractional", 0.5)):
+        hass.states.async_set(
+            entity_id,
+            HVACMode.COOL,
+            {
+                "hvac_modes": [HVACMode.OFF, HVACMode.COOL],
+                "target_temp_step": step,
+                ATTR_TEMPERATURE: 21.0,
+            },
+        )
+    calls = []
+
+    async def set_temperature(call) -> None:
+        entity_id = call.data["entity_id"]
+        calls.append((entity_id, call.data[ATTR_TEMPERATURE]))
+        old = hass.states.get(entity_id)
+        assert old is not None
+        reported = 22.0 if entity_id == "climate.ac_integer" else 22.5
+        hass.states.async_set(
+            entity_id,
+            old.state,
+            old.attributes | {ATTR_TEMPERATURE: reported},
+        )
+
+    hass.services.async_register("climate", "set_temperature", set_temperature)
+
+    assert await adapter._async_set_ac(HVACMode.COOL, 22.5)
+    assert calls == [("climate.ac_integer", 22.0), ("climate.ac_fractional", 22.5)]
+
+
+@pytest.mark.asyncio
+async def test_temperature_ack_still_rejects_unrelated_report(hass, monkeypatch) -> None:
+    adapter = ActuatorAdapter(hass, room_config())
+    hass.states.async_set(
+        "climate.ac",
+        HVACMode.COOL,
+        {"target_temp_step": 1.0, ATTR_TEMPERATURE: 21.0},
+    )
+
+    async def set_temperature(_call) -> None:
+        old = hass.states.get("climate.ac")
+        assert old is not None
+        hass.states.async_set(
+            "climate.ac",
+            old.state,
+            old.attributes | {ATTR_TEMPERATURE: 24.0},
+        )
+
+    hass.services.async_register("climate", "set_temperature", set_temperature)
+    monkeypatch.setattr("custom_components.virtual_hvac.actuators.COMMAND_ACK_TIMEOUT", 0.01)
+
+    assert not await adapter._async_set_climate_temperature("climate.ac", 22.5)
+
+
+@pytest.mark.asyncio
 async def test_fan_mode_rejects_missing_or_unsupported_capability(hass) -> None:
     adapter = ActuatorAdapter(hass, room_config())
     assert not await adapter.async_set_fan_mode("quiet")

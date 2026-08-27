@@ -157,6 +157,10 @@ The adapter first requests the opposite path off and requires Home Assistant sta
 
 Reported state acknowledgement is stronger than service-call completion but still does not prove mechanical movement, valve travel, or safe hydraulic flow.
 
+### Physical climate target precision
+
+The virtual room target remains unchanged, while each physical climate receives a target compatible with its reported `min_temp`, `max_temp`, and `target_temp_step` capabilities. A midpoint is resolved deterministically toward the lower step. Acknowledgement accepts the exact bounded target, either adjacent grid value, and whole-degree feedback from devices that do not expose their step. Non-finite, unavailable, or unrelated feedback still fails closed.
+
 ## Shared heat-source arbitration
 
 Global heat demand is logical OR across effective room heat demands.
