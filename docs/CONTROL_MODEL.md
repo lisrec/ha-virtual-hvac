@@ -73,7 +73,7 @@ When heating is active, demand continues while:
 T < S + H_off
 ```
 
-At or above the stop threshold, the room selects off with `heat_target_satisfied`.
+At or above the stop threshold, the room selects off with `heat_target_satisfied`. The automatic mode uses a strict start boundary; see below.
 
 Heating requests the primary heater. A heating climate output receives target plus TRV offset. Boost can select heat assist when AC heat assist is enabled and an AC output exists.
 
@@ -81,7 +81,7 @@ Heating requests the primary heater. A heating climate output receives target pl
 
 Cooling hysteresis applies to automatic mode and explicit cool mode.
 
-Let `C_on` be cooling start offset and `C_off` be cooling stop offset. Cooling starts when:
+Let `C_on` be cooling start offset and `C_off` be cooling stop offset. Explicit cool mode starts when:
 
 ```text
 T >= S + C_on
@@ -95,7 +95,7 @@ T > S - C_off
 
 At or below the cooling stop boundary, the room selects off with `cool_target_satisfied` unless a configured minimum cooling-on interval is still active.
 
-Explicit cool mode uses the same hysteresis boundaries after common interlocks and protection timers pass. Virtual HVAC remains the sole software writer for the AC output; the physical AC may apply its own internal protections, but it is not responsible for room-temperature cutoff.
+Automatic mode uses the same stop boundary but a strict start boundary: cooling starts only when `T > S + C_on`. Virtual HVAC remains the sole software writer for the AC output; the physical AC may apply its own internal protections, but it is not responsible for room-temperature cutoff.
 
 ## Automatic mode
 
@@ -103,9 +103,11 @@ Automatic mode follows this order:
 
 1. Continue the prior heating path while below its heating stop threshold.
 2. Continue the prior cooling path while above its cooling stop threshold.
-3. If at or below the heating start threshold, request heat.
-4. Otherwise, if at or above the cooling start threshold, request cool.
+3. If strictly below the heating start threshold, request heat.
+4. Otherwise, if strictly above the cooling start threshold, request cool.
 5. Otherwise select off with `auto_dead_band`.
+
+With the default offsets and a 22.0-degree target, automatic mode therefore starts heating below 21.0 degrees, starts cooling above 23.0 degrees, and stops either active path at 22.0 degrees. Exact 21.0 and 23.0 degree boundary readings remain idle when no path is already active.
 
 A heat/cool reversal and a cooling start may be delayed by the protection rules below.
 

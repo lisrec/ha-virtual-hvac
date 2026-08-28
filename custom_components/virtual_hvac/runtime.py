@@ -15,6 +15,7 @@ from homeassistant.util.dt import utcnow
 from homeassistant.util.unit_conversion import TemperatureConverter
 
 from .actuators import ActuatorAdapter, async_set_switch_confirmed
+from .const import DEFAULT_TARGET_TEMPERATURE
 from .control import (
     ControlDecision,
     ControlInput,
@@ -56,7 +57,7 @@ class RoomRuntime:
         self.config = config
         self.mode = VirtualMode.OFF
         self.preset = Preset.COMFORT
-        self.target_temperature = 21.0
+        self.target_temperature = DEFAULT_TARGET_TEMPERATURE
         self.decision = ControlDecision(
             OutputMode.OFF, False, False, None, False, False, "startup_disarmed"
         )

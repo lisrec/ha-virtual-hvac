@@ -50,6 +50,10 @@ def make_room(hass, **overrides: object) -> RoomRuntime:
     return RoomRuntime(hass, "room-id", room_config(**overrides), Mock())
 
 
+def test_room_defaults_to_twenty_two_degree_target(hass) -> None:
+    assert make_room(hass).target_temperature == 22.0
+
+
 def set_authoritative_states(hass) -> None:
     hass.states.async_set("sensor.temperature", "20.0", {"unit_of_measurement": "°C"})
     hass.states.async_set("climate.ac", HVACMode.OFF, {"hvac_modes": [HVACMode.OFF, HVACMode.COOL]})
@@ -247,7 +251,7 @@ async def test_restore_ignores_unsupported_mode_and_invalid_target(hass) -> None
     await room.async_restore(VirtualMode.COOL, math.nan, Preset.SLEEP)
 
     assert room.mode is VirtualMode.OFF
-    assert room.target_temperature == 21.0
+    assert room.target_temperature == 22.0
     assert room.preset is Preset.SLEEP
     listener.assert_called_once()
 
@@ -706,7 +710,7 @@ async def test_shared_retry_turns_on_after_first_start_with_relay_already_off(
 async def test_explicit_cool_target_stop_clears_previous_output_memory(hass, monkeypatch) -> None:
     now = utcnow()
     set_authoritative_states(hass)
-    hass.states.async_set("sensor.temperature", "22.5", {"unit_of_measurement": "°C"})
+    hass.states.async_set("sensor.temperature", "23.1", {"unit_of_measurement": "°C"})
     hass.states.async_set(
         "climate.ac",
         HVACMode.COOL,
@@ -744,7 +748,7 @@ async def test_explicit_cool_target_stop_clears_previous_output_memory(hass, mon
 async def test_fan_only_must_wait_for_cooling_minimum_off_before_cool(hass, monkeypatch) -> None:
     now = utcnow()
     set_authoritative_states(hass)
-    hass.states.async_set("sensor.temperature", "22.5", {"unit_of_measurement": "°C"})
+    hass.states.async_set("sensor.temperature", "23.1", {"unit_of_measurement": "°C"})
     hass.states.async_set(
         "climate.ac",
         HVACMode.FAN_ONLY,
@@ -811,7 +815,7 @@ async def test_cooling_on_timestamp_starts_after_actuation_ack(hass, monkeypatch
     acknowledged = started + timedelta(seconds=10)
     clock = {"now": started}
     set_authoritative_states(hass)
-    hass.states.async_set("sensor.temperature", "22.5", {"unit_of_measurement": "°C"})
+    hass.states.async_set("sensor.temperature", "23.1", {"unit_of_measurement": "°C"})
     room = make_room(
         hass,
         enable_safe_cooling_delay=True,

@@ -66,10 +66,10 @@ class RoomConfig:
     window_open_delay_minutes: float = DEFAULT_WINDOW_OPEN_DELAY_MINUTES
     rapid_entity_id: str | None = None
     silent_entity_id: str | None = None
-    heating_hysteresis_on: float = 0.5
-    heating_hysteresis_off: float = 0.3
-    cooling_hysteresis_on: float = 0.5
-    cooling_hysteresis_off: float = 0.3
+    heating_hysteresis_on: float = 1.0
+    heating_hysteresis_off: float = 0.0
+    cooling_hysteresis_on: float = 1.0
+    cooling_hysteresis_off: float = 0.0
     enable_safe_cooling_delay: bool = False
     minimum_seconds_cooling_on: int = 300
     minimum_seconds_cooling_off: int = 300
@@ -107,14 +107,22 @@ class RoomConfig:
         outputs = self.output_entity_ids()
         if len(outputs) != len(set(outputs)):
             raise ValueError("all configured output roles must be distinct")
-        hysteresis = (
-            self.heating_hysteresis_on,
-            self.heating_hysteresis_off,
-            self.cooling_hysteresis_on,
-            self.cooling_hysteresis_off,
-        )
-        if any(not 0.1 <= value <= 5.0 for value in hysteresis):
-            raise ValueError("hysteresis values must be between 0.1 and 5.0 degrees")
+        if any(
+            not 0.1 <= value <= 5.0
+            for value in (
+                self.heating_hysteresis_on,
+                self.cooling_hysteresis_on,
+            )
+        ):
+            raise ValueError("hysteresis start values must be between 0.1 and 5.0 degrees")
+        if any(
+            not 0.0 <= value <= 5.0
+            for value in (
+                self.heating_hysteresis_off,
+                self.cooling_hysteresis_off,
+            )
+        ):
+            raise ValueError("hysteresis stop values must be between 0.0 and 5.0 degrees")
         for value in (self.minimum_seconds_cooling_on, self.minimum_seconds_cooling_off):
             if not 0 <= value <= 86_400:
                 raise ValueError("AC protection times must be between 0 and 86400 seconds")

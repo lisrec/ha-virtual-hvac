@@ -165,6 +165,7 @@ def test_open_window_can_be_ignored() -> None:
         window_open=True,
         config=room_config(
             window_open_behavior=WindowOpenBehavior.IGNORE_OPEN_WINDOW,
+            cooling_hysteresis_on=0.5,
         ),
     )
     assert result.output_mode is OutputMode.COOL
@@ -281,7 +282,12 @@ def test_explicit_cool_obeys_minimum_on_before_stop() -> None:
 
 
 def test_explicit_cool_obeys_compressor_minimum_off() -> None:
-    result = decide(VirtualMode.COOL, temperature=22.5, ac_off_elapsed=60)
+    result = decide(
+        VirtualMode.COOL,
+        temperature=22.5,
+        ac_off_elapsed=60,
+        config=room_config(cooling_hysteresis_on=0.5),
+    )
     assert result.output_mode is OutputMode.OFF
     assert result.reason == "ac_minimum_off"
 
@@ -298,6 +304,7 @@ def test_explicit_cool_obeys_heat_to_cool_reversal_guard() -> None:
         temperature=22.5,
         mode_elapsed=60,
         memory=ControlMemory(last_output_mode=OutputMode.HEAT),
+        config=room_config(cooling_hysteresis_on=0.5),
     )
     assert result.output_mode is OutputMode.OFF
     assert result.reason == "mode_reversal_guard"
@@ -326,7 +333,7 @@ def test_explicit_heat_obeys_cool_to_heat_reversal_guard() -> None:
 
 
 def test_heat_starts_below_lower_hysteresis() -> None:
-    result = decide(VirtualMode.HEAT, temperature=21.4, target=22.0)
+    result = decide(VirtualMode.HEAT, temperature=20.9, target=22.0)
     assert result.output_mode is OutputMode.HEAT
     assert result.heat_demand is True
     assert result.heater_active is True
@@ -335,7 +342,7 @@ def test_heat_starts_below_lower_hysteresis() -> None:
 def test_heat_stays_on_until_upper_hysteresis_is_reached() -> None:
     result = decide(
         VirtualMode.HEAT,
-        temperature=22.2,
+        temperature=21.9,
         target=22.0,
         memory=ControlMemory(last_output_mode=OutputMode.HEAT, heating_active=True),
     )
@@ -353,9 +360,45 @@ def test_heat_stops_at_upper_hysteresis() -> None:
     assert result.heat_demand is False
 
 
-def test_auto_enters_cooling_above_upper_threshold() -> None:
-    result = decide(VirtualMode.AUTO, temperature=22.6, target=22.0)
+def test_auto_waits_at_start_boundaries() -> None:
+    for temperature in (21.0, 23.0):
+        result = decide(VirtualMode.AUTO, temperature=temperature, target=22.0)
+        assert result.output_mode is OutputMode.OFF
+        assert result.reason == "auto_dead_band"
+
+
+def test_auto_enters_cooling_above_target_plus_one() -> None:
+    result = decide(VirtualMode.AUTO, temperature=23.1, target=22.0)
     assert result.output_mode is OutputMode.COOL
+
+
+def test_auto_enters_heating_below_target_minus_one() -> None:
+    result = decide(VirtualMode.AUTO, temperature=20.9, target=22.0)
+    assert result.output_mode is OutputMode.HEAT
+
+
+def test_auto_stops_heating_at_target() -> None:
+    result = decide(
+        VirtualMode.AUTO,
+        temperature=22.0,
+        target=22.0,
+        memory=ControlMemory(last_output_mode=OutputMode.HEAT, heating_active=True),
+    )
+    assert result.output_mode is OutputMode.OFF
+    assert result.heat_demand is False
+    assert result.reason == "auto_dead_band"
+
+
+def test_auto_stops_cooling_at_target() -> None:
+    result = decide(
+        VirtualMode.AUTO,
+        temperature=22.0,
+        target=22.0,
+        ac_on_elapsed=1000,
+        memory=ControlMemory(last_output_mode=OutputMode.COOL, cooling_active=True),
+    )
+    assert result.output_mode is OutputMode.OFF
+    assert result.reason == "auto_dead_band"
 
 
 def test_auto_stays_idle_inside_dead_band() -> None:
@@ -365,7 +408,7 @@ def test_auto_stays_idle_inside_dead_band() -> None:
 
 
 def test_auto_does_not_restart_ac_before_minimum_off_time() -> None:
-    result = decide(VirtualMode.AUTO, temperature=23.0, target=22.0, ac_off_elapsed=60)
+    result = decide(VirtualMode.AUTO, temperature=23.1, target=22.0, ac_off_elapsed=60)
     assert result.output_mode is OutputMode.OFF
     assert result.reason == "ac_minimum_off"
     assert result.retry_after_seconds == 240
@@ -374,7 +417,7 @@ def test_auto_does_not_restart_ac_before_minimum_off_time() -> None:
 def test_disabled_safe_cooling_delay_allows_immediate_start() -> None:
     result = decide(
         VirtualMode.COOL,
-        temperature=22.5,
+        temperature=23.1,
         ac_off_elapsed=0,
         config=room_config(
             enable_safe_cooling_delay=False,
@@ -414,10 +457,22 @@ def test_auto_keeps_cooling_until_minimum_on_time() -> None:
 def test_auto_does_not_reverse_heat_to_cool_inside_guard() -> None:
     result = decide(
         VirtualMode.AUTO,
-        temperature=23.0,
+        temperature=23.1,
         target=22.0,
         mode_elapsed=60,
         memory=ControlMemory(last_output_mode=OutputMode.HEAT),
+    )
+    assert result.output_mode is OutputMode.OFF
+    assert result.reason == "mode_reversal_guard"
+
+
+def test_auto_does_not_reverse_cool_to_heat_inside_guard() -> None:
+    result = decide(
+        VirtualMode.AUTO,
+        temperature=20.9,
+        target=22.0,
+        mode_elapsed=60,
+        memory=ControlMemory(last_output_mode=OutputMode.COOL),
     )
     assert result.output_mode is OutputMode.OFF
     assert result.reason == "mode_reversal_guard"

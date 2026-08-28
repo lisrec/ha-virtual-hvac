@@ -27,7 +27,47 @@ def test_room_defaults_disable_safe_cooling_delay() -> None:
     assert config.enable_safe_cooling_delay is False
     assert config.minimum_seconds_cooling_on == 300
     assert config.minimum_seconds_cooling_off == 300
+    assert config.heating_hysteresis_on == 1.0
+    assert config.heating_hysteresis_off == 0.0
+    assert config.cooling_hysteresis_on == 1.0
+    assert config.cooling_hysteresis_off == 0.0
     assert config.window_open_delay_minutes == 5.0
+
+
+def test_room_accepts_zero_stop_hysteresis() -> None:
+    config = RoomConfig(
+        name="Room",
+        temperature_sensor_entity_ids=("sensor.temperature",),
+        ac_entity_ids=("climate.ac",),
+        heating_hysteresis_off=0.0,
+        cooling_hysteresis_off=0.0,
+    )
+    assert config.heating_hysteresis_off == 0.0
+    assert config.cooling_hysteresis_off == 0.0
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("heating_hysteresis_on", 0.0),
+        ("cooling_hysteresis_on", 0.0),
+        ("heating_hysteresis_off", -0.1),
+        ("cooling_hysteresis_off", -0.1),
+        ("heating_hysteresis_off", 5.1),
+        ("cooling_hysteresis_off", 5.1),
+        ("heating_hysteresis_off", float("nan")),
+        ("cooling_hysteresis_off", float("inf")),
+    ],
+)
+def test_room_rejects_invalid_hysteresis(field: str, value: float) -> None:
+    values: dict[str, object] = {
+        "name": "Room",
+        "temperature_sensor_entity_ids": ("sensor.temperature",),
+        "ac_entity_ids": ("climate.ac",),
+        field: value,
+    }
+    with pytest.raises(ValueError, match="hysteresis"):
+        RoomConfig(**values)  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize("value", [-1, 1_440.1, float("nan")])

@@ -168,20 +168,20 @@ def _room_schema(defaults: Mapping[str, Any] | None = None) -> vol.Schema:
             ): EntitySelector(EntitySelectorConfig(domain=Platform.SWITCH)),
             vol.Required(
                 CONF_HEAT_HYSTERESIS_ON,
-                default=values.get(CONF_HEAT_HYSTERESIS_ON, 0.5),
+                default=values.get(CONF_HEAT_HYSTERESIS_ON, 1.0),
             ): _number_selector(0.1, 5.0, 0.1, "°"),
             vol.Required(
                 CONF_HEAT_HYSTERESIS_OFF,
-                default=values.get(CONF_HEAT_HYSTERESIS_OFF, 0.3),
-            ): _number_selector(0.1, 5.0, 0.1, "°"),
+                default=values.get(CONF_HEAT_HYSTERESIS_OFF, 0.0),
+            ): _number_selector(0.0, 5.0, 0.1, "°"),
             vol.Required(
                 CONF_COOL_HYSTERESIS_ON,
-                default=values.get(CONF_COOL_HYSTERESIS_ON, 0.5),
+                default=values.get(CONF_COOL_HYSTERESIS_ON, 1.0),
             ): _number_selector(0.1, 5.0, 0.1, "°"),
             vol.Required(
                 CONF_COOL_HYSTERESIS_OFF,
-                default=values.get(CONF_COOL_HYSTERESIS_OFF, 0.3),
-            ): _number_selector(0.1, 5.0, 0.1, "°"),
+                default=values.get(CONF_COOL_HYSTERESIS_OFF, 0.0),
+            ): _number_selector(0.0, 5.0, 0.1, "°"),
             vol.Required(
                 CONF_ENABLE_SAFE_COOLING_DELAY,
                 default=values.get(CONF_ENABLE_SAFE_COOLING_DELAY, False),

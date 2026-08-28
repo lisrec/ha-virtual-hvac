@@ -84,11 +84,11 @@ Select every window sensor that belongs to the room. Any explicit open state sta
 
 | Setting | Default | Allowed range | Meaning |
 |---|---:|---:|---|
-| Heating start offset | 0.5 degrees | 0.1–5.0 | Start heating at or below target minus this value. |
-| Heating stop offset | 0.3 degrees | 0.1–5.0 | Continue heating until temperature reaches target plus this value. |
-| Cooling start offset | 0.5 degrees | 0.1–5.0 | In automatic mode, start cooling at or above target plus this value. |
-| Cooling stop offset | 0.3 degrees | 0.1–5.0 | In automatic mode, continue cooling until temperature reaches target minus this value. |
-| Enable safe cooling delay | On | Boolean | Enforce both minimum cooling on and off times. |
+| Heating start offset | 1.0 degrees | 0.1–5.0 | In automatic mode, start heating only below target minus this offset. |
+| Heating stop offset | 0.0 degrees | 0–5.0 | Stop heating when temperature reaches target plus this offset; 0.0 stops at target. |
+| Cooling start offset | 1.0 degrees | 0.1–5.0 | In automatic mode, start cooling only above target plus this offset. |
+| Cooling stop offset | 0.0 degrees | 0–5.0 | Stop cooling when temperature reaches target minus this offset; 0.0 stops at target. |
+| Enable safe cooling delay | Off | Boolean | Enforce both minimum cooling on and off times. |
 | Minimum cooling on time | 300 seconds | 0–86400 seconds | Keep automatic cooling active for at least this interval. Explicit off and safety interlocks remain immediate. |
 | Minimum cooling off time | 300 seconds | 0–86400 seconds | Delay cooling or dry startup after the AC reports off. |
 | Heat/cool reversal guard | 300 seconds | 0–86400 seconds | Delay a transition between heating and cooling paths. |
@@ -96,7 +96,7 @@ Select every window sensor that belongs to the room. Any explicit open state sta
 | Allow AC heat assist in boost | Off | Boolean | Allows boost to request AC heat alongside the primary heater. |
 | Temperature reading maximum age | 300 seconds | 1–604800 seconds | Excludes readings older than this interval. |
 
-The virtual target range is 5–35 degrees with a 0.5-degree step.
+The virtual target range is 5–35 degrees with a 0.5-degree step. New rooms start at 22.0 degrees; restored rooms keep their last target.
 
 ## Presets
 
