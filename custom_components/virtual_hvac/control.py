@@ -287,8 +287,8 @@ class RoomController:
                 math.ceil(self._config.minimum_seconds_cooling_on - inputs.ac_on_elapsed_seconds),
             )
 
-        wants_heat = temperature <= target - self._config.heating_hysteresis_on
-        wants_cool = temperature >= target + self._config.cooling_hysteresis_on
+        wants_heat = temperature < target - self._config.heating_hysteresis_on
+        wants_cool = temperature > target + self._config.cooling_hysteresis_on
         if wants_heat:
             if self._is_reversal(memory.last_output_mode, OutputMode.HEAT, inputs):
                 return self._protected("mode_reversal_guard", inputs)

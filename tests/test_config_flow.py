@@ -133,6 +133,22 @@ async def test_room_subentry_flow_creates_room(hass) -> None:
         key for key in result["data_schema"].schema if key.schema == "window_open_delay_minutes"
     )
     assert window_delay_key.default() == 5.0
+    expected_hysteresis_defaults = {
+        "heating_hysteresis_on": 1.0,
+        "heating_hysteresis_off": 0.0,
+        "cooling_hysteresis_on": 1.0,
+        "cooling_hysteresis_off": 0.0,
+    }
+    for field, expected in expected_hysteresis_defaults.items():
+        key = next(key for key in result["data_schema"].schema if key.schema == field)
+        assert key.default() == expected
+    for field in ("heating_hysteresis_off", "cooling_hysteresis_off"):
+        selector = next(
+            selector
+            for key, selector in result["data_schema"].schema.items()
+            if key.schema == field
+        )
+        assert selector.config["min"] == 0.0
     assert (
         next(
             key.default()
