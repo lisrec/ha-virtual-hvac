@@ -63,6 +63,7 @@ class ControlInput:
     mode_elapsed_seconds: float
     window_open_elapsed_seconds: float = 0.0
     ac_on_elapsed_seconds: float = math.inf
+    ac_heating_supported: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -220,9 +221,36 @@ class RoomController:
             )
         if not heating:
             return self._off("heat_target_satisfied", rapid=rapid, silent=silent)
+        return self._heating_decision(inputs, rapid, silent, "heat_demand")
+
+    def _heating_decision(
+        self,
+        inputs: ControlInput,
+        rapid: bool,
+        silent: bool,
+        reason: str,
+    ) -> ControlDecision:
+        """Select a primary-heater, assisted, or AC-only heating path."""
+        if not self._config.heater_entity_ids:
+            if not inputs.ac_heating_supported:
+                return self._off("ac_heat_unavailable", rapid=False, silent=False)
+            return ControlDecision(
+                OutputMode.HEAT,
+                False,
+                False,
+                inputs.target_temperature,
+                rapid,
+                silent,
+                reason,
+            )
         output = (
             OutputMode.HEAT_ASSIST
-            if rapid and self._config.boost_ac_heat_assist and self._config.ac_entity_ids
+            if (
+                rapid
+                and self._config.boost_ac_heat_assist
+                and self._config.ac_entity_ids
+                and inputs.ac_heating_supported
+            )
             else OutputMode.HEAT
         )
         return ControlDecision(
@@ -232,7 +260,7 @@ class RoomController:
             inputs.target_temperature if output is OutputMode.HEAT_ASSIST else None,
             rapid,
             silent,
-            "heat_demand",
+            reason,
         )
 
     def _decide_auto(
@@ -249,15 +277,7 @@ class RoomController:
 
         if memory.last_output_mode in (OutputMode.HEAT, OutputMode.HEAT_ASSIST):
             if temperature < target + self._config.heating_hysteresis_off:
-                return ControlDecision(
-                    OutputMode.HEAT,
-                    True,
-                    True,
-                    None,
-                    rapid,
-                    silent,
-                    "auto_continue_heat",
-                )
+                return self._heating_decision(inputs, rapid, silent, "auto_continue_heat")
         elif (
             memory.last_output_mode is OutputMode.COOL
             and temperature > target - self._config.cooling_hysteresis_off
@@ -292,15 +312,7 @@ class RoomController:
         if wants_heat:
             if self._is_reversal(memory.last_output_mode, OutputMode.HEAT, inputs):
                 return self._protected("mode_reversal_guard", inputs)
-            return ControlDecision(
-                OutputMode.HEAT,
-                True,
-                True,
-                None,
-                rapid,
-                silent,
-                "auto_heat",
-            )
+            return self._heating_decision(inputs, rapid, silent, "auto_heat")
         if wants_cool:
             if self._is_reversal(memory.last_output_mode, OutputMode.COOL, inputs):
                 return self._protected("mode_reversal_guard", inputs)

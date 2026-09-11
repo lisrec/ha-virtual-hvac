@@ -75,7 +75,7 @@ T < S + H_off
 
 At or above the stop threshold, the room selects off with `heat_target_satisfied`. The automatic mode uses a strict start boundary; see below.
 
-Heating requests the primary heater. A heating climate output receives target plus TRV offset. Boost can select heat assist when AC heat assist is enabled and an AC output exists.
+Heating requests the primary heater when configured. Without a primary heater, AC becomes the heating output only when every configured AC reports heat support; this AC-only path does not publish shared heat-source demand. A heating climate output receives target plus TRV offset. Boost selects heat assist by default when enabled and every configured AC reports heat support.
 
 ## Cooling hysteresis
 
@@ -116,7 +116,7 @@ A heat/cool reversal and a cooling start may be delayed by the protection rules 
 | Virtual mode | Effective behavior |
 |---|---|
 | Off | AC off, heater off, preset switches off, no heat demand. |
-| Heat | Hysteresis-controlled primary heating; optional boost heat assist. |
+| Heat | Hysteresis-controlled primary heating, or AC heating when no primary heater is configured; boost heat assist is enabled by default. |
 | Cool | AC cool with the virtual target after protection timers. |
 | Dry | AC dry after protection timers; target is not forced. |
 | Fan only | Heater off and AC fan-only; target is not forced and the compressor is treated as inactive. |
@@ -129,7 +129,7 @@ Only modes supported by configured and currently reported physical outputs are e
 | Preset | Rapid switch | Silent switch | Other effect |
 |---|---:|---:|---|
 | Comfort | Off | Off | Normal operation. |
-| Boost | On while active | Off | May use AC heat assist when explicitly enabled. |
+| Boost | On while active | Off | Uses AC heat assist by default when supported; it can be disabled per room. |
 | Sleep | Off | On while active | No other vendor-specific changes. |
 
 ## Room protection timers
@@ -191,6 +191,6 @@ Common room status values include:
 - normal selection: `explicit_cool`, `explicit_dry`, `explicit_fan_only`, `heat_demand`, `auto_heat`, `auto_cool`, `auto_continue_heat`, `auto_continue_cool`;
 - satisfied or idle: `cool_target_satisfied`, `mode_off`, `heat_target_satisfied`, `auto_dead_band`;
 - startup, shutdown, or interlock: `startup_disarmed`, `startup_inputs_not_authoritative`, `startup_neutralization_failed`, `shutdown_neutralized`, `no_valid_temperature`, `invalid_target`, `window_open`, `window_open_delay_active`, `window_unavailable`, `ac_minimum_on`, `ac_minimum_off`, `mode_reversal_guard`;
-- output fault: `ac_heat_assist_not_confirmed`, `ac_stop_not_confirmed`, `ac_stop_or_start_not_confirmed`, `heater_start_not_confirmed`, `heater_stop_not_confirmed`, `neutralization_not_confirmed`, `preset_output_not_confirmed`, `stale_command_neutralization_failed`, `service_call_failed`.
+- output fault: `ac_heat_not_confirmed`, `ac_heat_assist_not_confirmed`, `ac_heat_unavailable`, `ac_stop_not_confirmed`, `ac_stop_or_start_not_confirmed`, `heater_start_not_confirmed`, `heater_stop_not_confirmed`, `neutralization_not_confirmed`, `preset_output_not_confirmed`, `stale_command_neutralization_failed`, `service_call_failed`.
 
 Unknown arbitrary text is not included in downloadable diagnostics.

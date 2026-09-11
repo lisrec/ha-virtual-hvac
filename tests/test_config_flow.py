@@ -120,6 +120,12 @@ async def test_room_subentry_flow_creates_room(hass) -> None:
         for key, selector in result["data_schema"].schema.items()
         if key.schema == "heater_entity_ids"
     )
+    boost_default = next(
+        key.default()
+        for key in result["data_schema"].schema
+        if key.schema == "boost_ac_heat_assist"
+    )
+    assert boost_default is True
     assert heater_selector.config["multiple"] is True
     window_behavior_selector = next(
         selector

@@ -238,13 +238,18 @@ class RoomRuntime:
             result.append(VirtualMode.HEAT)
         if self.config.ac_entity_ids:
             states = [self.hass.states.get(entity_id) for entity_id in self.config.ac_entity_ids]
-            if any(state is None for state in states):
+            if any(
+                state is None or state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE)
+                for state in states
+            ):
                 return result
             ac_modes = set(
                 states[0].attributes.get("hvac_modes", [])  # type: ignore[union-attr]
             )
             for state in states[1:]:
                 ac_modes.intersection_update(state.attributes.get("hvac_modes", []))  # type: ignore[union-attr]
+            if VirtualMode.HEAT.value in ac_modes and VirtualMode.HEAT not in result:
+                result.append(VirtualMode.HEAT)
             result.extend(
                 mode
                 for mode in (
@@ -339,10 +344,12 @@ class RoomRuntime:
                 mode_elapsed_seconds=self._timestamps.elapsed(self._output_timestamp_key, now),
                 window_open_elapsed_seconds=window_open_elapsed,
                 ac_on_elapsed_seconds=self._ac_on_elapsed(now),
+                ac_heating_supported=self._ac_heating_supported(),
             ),
             self._memory,
         )
-        previous_output = self.decision.output_mode
+        previous_decision = self.decision
+        previous_output = previous_decision.output_mode
         confirmed_at: datetime | None = None
         self._actuating = True
         try:
@@ -380,7 +387,7 @@ class RoomRuntime:
                 self._timestamps.record(self._ac_timestamp_key, confirmed_at)
         elif confirmed_at is not None and decision.output_mode != previous_output:
             self._timestamps.record(self._output_timestamp_key, confirmed_at)
-            if (previous_output in _AC_ACTIVE_MODES) != (decision.output_mode in _AC_ACTIVE_MODES):
+            if self._decision_uses_ac(previous_decision) != self._decision_uses_ac(decision):
                 self._timestamps.record(self._ac_timestamp_key, confirmed_at)
         last_active = self._memory.last_output_mode
         if decision.output_mode is not OutputMode.OFF:
@@ -434,6 +441,25 @@ class RoomRuntime:
             for entity_id in self.config.ac_entity_ids
         )
 
+    def _ac_heating_supported(self) -> bool:
+        """Return whether every configured AC currently advertises heat mode."""
+        if not self.config.ac_entity_ids:
+            return False
+        states = [self.hass.states.get(entity_id) for entity_id in self.config.ac_entity_ids]
+        return all(
+            state is not None
+            and state.state not in (STATE_UNKNOWN, STATE_UNAVAILABLE)
+            and VirtualMode.HEAT.value in state.attributes.get("hvac_modes", [])
+            for state in states
+        )
+
+    @staticmethod
+    def _decision_uses_ac(decision: ControlDecision) -> bool:
+        """Return whether a decision has the AC compressor path active."""
+        return decision.output_mode in _AC_ACTIVE_MODES or (
+            decision.output_mode is OutputMode.HEAT and not decision.heater_active
+        )
+
     @staticmethod
     def _ac_compressor_active(state: State | None) -> bool | None:
         if state is None or state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE):
@@ -449,11 +475,13 @@ class RoomRuntime:
             OutputMode.FAN_ONLY: "fan_only",
             OutputMode.HEAT_ASSIST: "heat",
         }.get(output, STATE_OFF)
+        if output is OutputMode.HEAT and not self.decision.heater_active:
+            ac_expected = "heat"
         for entity_id in self.config.ac_entity_ids:
             ac_state = self.hass.states.get(entity_id)
             if ac_state is None or ac_state.state != ac_expected:
                 return False
-        heater_expected_on = output in (OutputMode.HEAT, OutputMode.HEAT_ASSIST)
+        heater_expected_on = self.decision.heater_active
         for entity_id in self.config.heater_entity_ids:
             heater_state = self.hass.states.get(entity_id)
             if heater_state is None:

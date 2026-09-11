@@ -75,7 +75,7 @@ class RoomConfig:
     minimum_seconds_cooling_off: int = 300
     mode_reversal_guard_seconds: int = 300
     trv_target_offset: float = 1.0
-    boost_ac_heat_assist: bool = False
+    boost_ac_heat_assist: bool = True
     temperature_sensor_max_age_seconds: int | None = 300
 
     def __post_init__(self) -> None:

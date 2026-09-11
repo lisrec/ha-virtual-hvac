@@ -25,6 +25,7 @@ def test_room_defaults_disable_safe_cooling_delay() -> None:
         ac_entity_ids=("climate.ac",),
     )
     assert config.enable_safe_cooling_delay is False
+    assert config.boost_ac_heat_assist is True
     assert config.minimum_seconds_cooling_on == 300
     assert config.minimum_seconds_cooling_off == 300
     assert config.heating_hysteresis_on == 1.0

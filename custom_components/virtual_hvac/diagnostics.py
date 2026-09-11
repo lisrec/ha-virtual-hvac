@@ -16,7 +16,9 @@ _SAFE_ROOM_STATUSES = frozenset(
     {
         "ac_minimum_on",
         "ac_minimum_off",
+        "ac_heat_not_confirmed",
         "ac_heat_assist_not_confirmed",
+        "ac_heat_unavailable",
         "ac_stop_not_confirmed",
         "ac_stop_or_start_not_confirmed",
         "auto_continue_cool",

@@ -221,6 +221,49 @@ async def test_temperature_collection_ignores_stale_invalid_and_unknown_sources(
 
 
 @pytest.mark.asyncio
+async def test_ac_only_room_hides_heat_when_ac_state_is_unavailable(hass) -> None:
+    room = make_room(hass, heater_entity_ids=())
+    hass.states.async_set(
+        "climate.ac",
+        STATE_UNAVAILABLE,
+        {"hvac_modes": [HVACMode.OFF, HVACMode.HEAT, HVACMode.COOL]},
+    )
+
+    assert VirtualMode.HEAT not in room.supported_virtual_modes()
+
+
+@pytest.mark.asyncio
+async def test_ac_only_room_exposes_heat_when_every_ac_supports_it(hass) -> None:
+    room = make_room(hass, heater_entity_ids=())
+    hass.states.async_set(
+        "climate.ac",
+        HVACMode.OFF,
+        {"hvac_modes": [HVACMode.OFF, HVACMode.HEAT, HVACMode.COOL]},
+    )
+
+    assert VirtualMode.HEAT in room.supported_virtual_modes()
+
+
+def test_ac_heat_requires_every_ac_in_bank_to_support_heat(hass) -> None:
+    room = make_room(
+        hass,
+        ac_entity_ids=("climate.ac_with_heat", "climate.ac_without_heat"),
+    )
+    hass.states.async_set(
+        "climate.ac_with_heat",
+        HVACMode.OFF,
+        {"hvac_modes": [HVACMode.OFF, HVACMode.HEAT, HVACMode.COOL]},
+    )
+    hass.states.async_set(
+        "climate.ac_without_heat",
+        HVACMode.OFF,
+        {"hvac_modes": [HVACMode.OFF, HVACMode.COOL]},
+    )
+
+    assert not room._ac_heating_supported()
+
+
+@pytest.mark.asyncio
 async def test_supported_modes_follow_live_ac_capabilities(hass) -> None:
     heater_only = make_room(hass, ac_entity_ids=())
     assert heater_only.supported_virtual_modes() == [VirtualMode.OFF, VirtualMode.HEAT]
@@ -401,6 +444,54 @@ async def test_runtime_tracks_every_window_sensor(hass, monkeypatch) -> None:
     await room.async_start()
 
     assert {"binary_sensor.window", "binary_sensor.second_window"} <= tracked
+
+
+def test_ac_only_heat_is_tracked_as_ac_compressor_activity(hass) -> None:
+    room = make_room(hass, heater_entity_ids=())
+    ac_heat = ControlDecision(
+        OutputMode.HEAT,
+        False,
+        False,
+        22.0,
+        False,
+        False,
+        "heat_demand",
+    )
+    primary_heat = ControlDecision(
+        OutputMode.HEAT,
+        True,
+        True,
+        None,
+        False,
+        False,
+        "heat_demand",
+    )
+
+    assert room._decision_uses_ac(ac_heat)
+    assert not room._decision_uses_ac(primary_heat)
+
+
+@pytest.mark.asyncio
+async def test_ac_only_heat_matches_confirmed_ac_state(hass) -> None:
+    room = make_room(hass, heater_entity_ids=())
+    hass.states.async_set(
+        "climate.ac",
+        HVACMode.HEAT,
+        {"hvac_modes": [HVACMode.OFF, HVACMode.HEAT, HVACMode.COOL]},
+    )
+    hass.states.async_set("switch.rapid", STATE_OFF)
+    hass.states.async_set("switch.silent", STATE_OFF)
+    room.decision = ControlDecision(
+        OutputMode.HEAT,
+        False,
+        False,
+        22.0,
+        False,
+        False,
+        "heat_demand",
+    )
+
+    assert room._physical_outputs_match_decision()
 
 
 @pytest.mark.asyncio

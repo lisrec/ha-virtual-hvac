@@ -54,7 +54,7 @@ No physical output may be reused by another room or by the controller relay. Rap
 |---|---:|---|
 | Room name | Yes | Display name for the subentry and room device. |
 | Temperature sensors | Yes | One or more sensors with temperature device class or a supported temperature unit. |
-| Air-conditioning climate output | No | Climate entity used for supported cool, dry, fan-only, and optional heat-assist modes. |
+| Air-conditioning climate output | No | Climate entity used for supported cool, dry, fan-only, AC-only heat, and heat-assist modes. |
 | Heater or TRV output | No | Heating climate entity, TRV, or switch. At least one AC or heater output is required. |
 | Window sensors | No | One or more binary sensors; any open sensor starts the per-room grace period before the selected open-window policy is applied. |
 | Rapid-mode switch | No | Switch enabled by boost while an HVAC path is active. |
@@ -66,7 +66,7 @@ At setup, every selected sensor must exist and report either a temperature devic
 
 ### AC output
 
-The virtual climate entity exposes only AC modes currently reported by the selected physical climate entity. Automatic mode is available only when both room heating and AC cooling are available.
+The virtual climate entity exposes only AC modes currently reported by every selected physical climate entity. When no primary heater is selected and every AC reports heat support, AC becomes the room's heating output and the virtual heat mode is exposed. Automatic mode is available when heating from either a primary heater or AC and AC cooling are both available.
 
 Verify that the AC reports off and each intended mode, and accepts target temperature where required. Dry and fan-only do not force a target.
 
@@ -93,7 +93,7 @@ Select every window sensor that belongs to the room. Any explicit open state sta
 | Minimum cooling off time | 300 seconds | 0–86400 seconds | Delay cooling or dry startup after the AC reports off. |
 | Heat/cool reversal guard | 300 seconds | 0–86400 seconds | Delay a transition between heating and cooling paths. |
 | TRV target offset | 1.0 degrees | 0–5.0 | Added to the virtual target sent to a heating climate entity. |
-| Allow AC heat assist in boost | Off | Boolean | Allows boost to request AC heat alongside the primary heater. |
+| Allow AC heat assist in boost | On | Boolean | Allows boost to request AC heat alongside the primary heater when every selected AC reports heat support. |
 | Temperature reading maximum age | 300 seconds | 1–604800 seconds | Excludes readings older than this interval. |
 
 The virtual target range is 5–35 degrees with a 0.5-degree step. New rooms start at 22.0 degrees; restored rooms keep their last target.
@@ -101,7 +101,7 @@ The virtual target range is 5–35 degrees with a 0.5-degree step. New rooms sta
 ## Presets
 
 - **Comfort:** rapid and silent switches off.
-- **Boost:** rapid switch on while active; may enable AC heat assist when explicitly configured.
+- **Boost:** rapid switch on while active; AC heat assist is enabled by default and can be disabled per room.
 - **Sleep:** silent switch on and rapid switch off while active.
 
 Preset switches are requested off whenever the selected HVAC output path is off.

@@ -37,6 +37,7 @@ def decide(
     ac_on_elapsed: float = float("inf"),
     mode_elapsed: float = 1000,
     preset: Preset = Preset.COMFORT,
+    ac_heating_supported: bool = True,
     config: RoomConfig | None = None,
 ):
     controller = RoomController(config or room_config())
@@ -52,6 +53,7 @@ def decide(
             ac_off_elapsed_seconds=ac_off_elapsed,
             mode_elapsed_seconds=mode_elapsed,
             ac_on_elapsed_seconds=ac_on_elapsed,
+            ac_heating_supported=ac_heating_supported,
         ),
         memory or ControlMemory(),
     )
@@ -339,6 +341,34 @@ def test_heat_starts_below_lower_hysteresis() -> None:
     assert result.heater_active is True
 
 
+def test_ac_only_heat_uses_ac_without_shared_heat_demand() -> None:
+    result = decide(
+        VirtualMode.HEAT,
+        temperature=20.0,
+        target=22.0,
+        config=room_config(heater_entity_ids=()),
+    )
+
+    assert result.output_mode is OutputMode.HEAT
+    assert result.heat_demand is False
+    assert result.heater_active is False
+    assert result.ac_target_temperature == 22.0
+
+
+def test_ac_only_auto_heat_uses_ac_without_shared_heat_demand() -> None:
+    result = decide(
+        VirtualMode.AUTO,
+        temperature=20.0,
+        target=22.0,
+        config=room_config(heater_entity_ids=()),
+    )
+
+    assert result.output_mode is OutputMode.HEAT
+    assert result.heat_demand is False
+    assert result.heater_active is False
+    assert result.ac_target_temperature == 22.0
+
+
 def test_heat_stays_on_until_upper_hysteresis_is_reached() -> None:
     result = decide(
         VirtualMode.HEAT,
@@ -476,6 +506,62 @@ def test_auto_does_not_reverse_cool_to_heat_inside_guard() -> None:
     )
     assert result.output_mode is OutputMode.OFF
     assert result.reason == "mode_reversal_guard"
+
+
+def test_boost_uses_ac_heat_assist_by_default_when_supported() -> None:
+    result = decide(
+        VirtualMode.HEAT,
+        temperature=20.0,
+        target=22.0,
+        preset=Preset.BOOST,
+    )
+
+    assert result.output_mode is OutputMode.HEAT_ASSIST
+    assert result.ac_target_temperature == 22.0
+
+
+def test_boost_respects_explicitly_disabled_ac_heat_assist() -> None:
+    result = decide(
+        VirtualMode.HEAT,
+        temperature=20.0,
+        target=22.0,
+        preset=Preset.BOOST,
+        config=room_config(boost_ac_heat_assist=False),
+    )
+
+    assert result.output_mode is OutputMode.HEAT
+    assert result.heater_active is True
+    assert result.ac_target_temperature is None
+
+
+def test_auto_boost_keeps_heat_assist_while_heating_continues() -> None:
+    result = decide(
+        VirtualMode.AUTO,
+        temperature=21.0,
+        target=22.0,
+        preset=Preset.BOOST,
+        memory=ControlMemory(
+            last_output_mode=OutputMode.HEAT_ASSIST,
+            heating_active=True,
+        ),
+    )
+
+    assert result.output_mode is OutputMode.HEAT_ASSIST
+    assert result.reason == "auto_continue_heat"
+
+
+def test_boost_keeps_primary_heater_when_ac_heat_is_unsupported() -> None:
+    result = decide(
+        VirtualMode.HEAT,
+        temperature=20.0,
+        target=22.0,
+        preset=Preset.BOOST,
+        ac_heating_supported=False,
+    )
+
+    assert result.output_mode is OutputMode.HEAT
+    assert result.heater_active is True
+    assert result.ac_target_temperature is None
 
 
 def test_boost_requests_rapid_and_optional_ac_heat_assist() -> None:

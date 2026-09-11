@@ -200,7 +200,7 @@ def _room_schema(defaults: Mapping[str, Any] | None = None) -> vol.Schema:
             ): _number_selector(0, 5.0, 0.1, "°"),
             vol.Required(
                 CONF_BOOST_AC_HEAT,
-                default=values.get(CONF_BOOST_AC_HEAT, False),
+                default=values.get(CONF_BOOST_AC_HEAT, True),
             ): BooleanSelector(),
             vol.Optional(
                 CONF_TEMPERATURE_MAX_AGE,

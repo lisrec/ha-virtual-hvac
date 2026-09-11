@@ -66,6 +66,49 @@ def set_climates(hass, *, heater_mode: HVACMode = HVACMode.OFF) -> None:
 
 
 @pytest.mark.asyncio
+async def test_ac_only_heating_commands_ac_heat_and_target(hass) -> None:
+    set_climates(hass)
+
+    async def set_mode(call) -> None:
+        entity_id = call.data[ATTR_ENTITY_ID]
+        old = hass.states.get(entity_id)
+        assert old is not None
+        hass.states.async_set(entity_id, call.data[ATTR_HVAC_MODE], old.attributes)
+
+    async def set_temperature(call) -> None:
+        entity_id = call.data[ATTR_ENTITY_ID]
+        old = hass.states.get(entity_id)
+        assert old is not None
+        hass.states.async_set(
+            entity_id,
+            old.state,
+            old.attributes | {ATTR_TEMPERATURE: call.data[ATTR_TEMPERATURE]},
+        )
+
+    hass.services.async_register("climate", "set_hvac_mode", set_mode)
+    hass.services.async_register("climate", "set_temperature", set_temperature)
+    ac_heat = ControlDecision(
+        output_mode=OutputMode.HEAT,
+        heat_demand=False,
+        heater_active=False,
+        ac_target_temperature=22.0,
+        rapid=False,
+        silent=False,
+        reason="heat_demand",
+    )
+
+    result = await ActuatorAdapter(hass, room_config(heater_entity_ids=())).async_apply(
+        ac_heat, 22.0
+    )
+
+    assert result.success
+    ac = hass.states.get("climate.ac")
+    assert ac is not None
+    assert ac.state == HVACMode.HEAT
+    assert ac.attributes[ATTR_TEMPERATURE] == 22.0
+
+
+@pytest.mark.asyncio
 async def test_reversal_stops_and_confirms_heater_before_enabling_cooling(hass) -> None:
     set_climates(hass, heater_mode=HVACMode.HEAT)
     order: list[tuple[str, str]] = []
@@ -157,6 +200,49 @@ async def test_heat_assist_stops_ac_before_starting_any_heating(hass, initial_ac
         < order.index(("climate.heater", HVACMode.HEAT))
         < order.index(("climate.ac", HVACMode.HEAT))
     )
+
+
+@pytest.mark.asyncio
+async def test_stable_heat_assist_does_not_cycle_ac_off_on_reapply(hass) -> None:
+    set_climates(hass)
+    ac = hass.states.get("climate.ac")
+    assert ac is not None
+    hass.states.async_set("climate.ac", HVACMode.COOL, ac.attributes)
+    calls: list[tuple[str, str]] = []
+
+    async def set_mode(call) -> None:
+        entity_id = call.data[ATTR_ENTITY_ID]
+        mode = call.data[ATTR_HVAC_MODE]
+        calls.append((entity_id, mode))
+        old = hass.states.get(entity_id)
+        assert old is not None
+        hass.states.async_set(entity_id, mode, old.attributes)
+
+    async def set_temperature(call) -> None:
+        entity_id = call.data[ATTR_ENTITY_ID]
+        old = hass.states.get(entity_id)
+        assert old is not None
+        hass.states.async_set(
+            entity_id,
+            old.state,
+            old.attributes | {ATTR_TEMPERATURE: call.data[ATTR_TEMPERATURE]},
+        )
+
+    hass.services.async_register("climate", "set_hvac_mode", set_mode)
+    hass.services.async_register("climate", "set_temperature", set_temperature)
+    adapter = ActuatorAdapter(hass, room_config())
+    heat_assist = decision(OutputMode.HEAT_ASSIST)
+
+    first = await adapter.async_apply(heat_assist, 22.0)
+    second = await adapter.async_apply(heat_assist, 22.0)
+
+    assert first.success
+    assert second.success
+    assert calls == [
+        ("climate.ac", HVACMode.OFF),
+        ("climate.heater", HVACMode.HEAT),
+        ("climate.ac", HVACMode.HEAT),
+    ]
 
 
 @pytest.mark.asyncio
