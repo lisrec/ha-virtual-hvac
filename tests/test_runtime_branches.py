@@ -135,7 +135,7 @@ async def test_room_stop_refuses_cleanup_when_neutralization_fails(hass, monkeyp
     )
 
     assert not await room.async_stop()
-    assert not room._stopping
+    assert room._stopping
     assert room.physical_status == "shutdown_neutralization_failed"
     cleanup.assert_not_called()
 
@@ -178,7 +178,7 @@ async def test_source_changes_only_schedule_needed_reconciliation(hass, monkeypa
     room = make_room(hass)
     evaluate = AsyncMock()
     monkeypatch.setattr(room, "async_evaluate", evaluate)
-    sensor_event = SimpleNamespace(data={"entity_id": "sensor.temperature"})
+    sensor_event = SimpleNamespace(data={"entity_id": "sensor.temperature", "new_state": None})
 
     room._async_source_changed(sensor_event)
     evaluate.assert_not_awaited()
@@ -348,6 +348,7 @@ async def test_actuation_failure_forces_logical_off_and_reports_neutralization(
     assert room.decision.output_mode is OutputMode.OFF
     assert room.status == "heater_start_not_confirmed"
     assert room.physical_status == "physical_neutralization_failed"
+    room._cleanup()
 
 
 @pytest.mark.asyncio
@@ -371,6 +372,7 @@ async def test_stale_actuation_that_cannot_neutralize_disarms_room(hass, monkeyp
     assert not room._ready
     assert room.status == "stale_command_neutralization_failed"
     assert room.physical_status == "stale_command_neutralization_failed"
+    room._cleanup()
 
 
 @pytest.mark.asyncio
@@ -606,7 +608,7 @@ async def test_controller_abort_startup_cleans_without_more_physical_calls(
     remove_shared = Mock()
     cancel_timer = Mock()
     listener = Mock()
-    room = SimpleNamespace(async_stop=AsyncMock(return_value=True))
+    room = SimpleNamespace(async_stop=AsyncMock(return_value=True), _disarm=Mock())
     runtime._remove_shared_listener = remove_shared
     runtime._cancel_shared_timer = cancel_timer
     runtime._listeners.add(listener)
@@ -630,7 +632,7 @@ async def test_controller_stop_refuses_cleanup_if_any_output_is_unsafe(hass, mon
     monkeypatch.setattr(runtime, "_async_neutralize_all", AsyncMock(return_value=False))
 
     assert not await runtime.async_stop()
-    assert not runtime._stopping
+    assert runtime._stopping
 
 
 @pytest.mark.asyncio
@@ -639,7 +641,7 @@ async def test_controller_stop_cleans_listeners_rooms_and_storage(hass, monkeypa
     remove_shared = Mock()
     cancel_timer = Mock()
     listener = Mock()
-    room = SimpleNamespace(async_stop=AsyncMock(return_value=True))
+    room = SimpleNamespace(async_stop=AsyncMock(return_value=True), _disarm=Mock())
     runtime._remove_shared_listener = remove_shared
     runtime._cancel_shared_timer = cancel_timer
     runtime._listeners.add(listener)
@@ -664,8 +666,8 @@ async def test_neutralize_all_attempts_every_room_even_after_failure(hass, monke
     monkeypatch.setattr(runtime, "_async_neutralize_shared", AsyncMock(return_value=True))
 
     assert not await runtime._async_neutralize_all()
-    first.async_stop.assert_awaited_once()
-    second.async_stop.assert_awaited_once()
+    first.async_stop.assert_awaited_once_with(cleanup=False)
+    second.async_stop.assert_awaited_once_with(cleanup=False)
 
 
 @pytest.mark.asyncio
@@ -685,7 +687,7 @@ async def test_shared_callbacks_respect_startup_and_shutdown_barriers(hass, monk
     assert evaluate.await_count == 2
 
     runtime._stopping = True
-    runtime._async_shared_source_changed(SimpleNamespace())
+    runtime._async_shared_source_changed(SimpleNamespace(data={"new_state": None}))
     assert evaluate.await_count == 2
 
 
@@ -833,6 +835,7 @@ async def test_explicit_cool_target_stop_clears_previous_output_memory(hass, mon
     assert room.status == "cool_target_satisfied"
     assert room._memory.last_output_mode is OutputMode.COOL
     assert room._memory.cooling_active is False
+    room._cleanup()
 
 
 @pytest.mark.asyncio
@@ -864,6 +867,7 @@ async def test_fan_only_must_wait_for_cooling_minimum_off_before_cool(hass, monk
     assert not room._physical_ac_active()
     assert room.decision.output_mode is OutputMode.OFF
     assert room.status == "ac_minimum_off"
+    room._cleanup()
 
 
 @pytest.mark.asyncio
@@ -898,6 +902,7 @@ async def test_cooling_minimum_on_does_not_restart_compressor_from_fan_only(
 
     assert room.decision.output_mode is OutputMode.OFF
     assert room.status == "auto_dead_band"
+    room._cleanup()
 
 
 @pytest.mark.asyncio
@@ -926,6 +931,7 @@ async def test_cooling_on_timestamp_starts_after_actuation_ack(hass, monkeypatch
 
     assert room.decision.output_mode is OutputMode.COOL
     assert room._timestamps.elapsed(room._ac_timestamp_key, acknowledged) == 0.0
+    room._cleanup()
 
 
 @pytest.mark.asyncio
@@ -957,6 +963,7 @@ async def test_unconfirmed_actuation_and_neutralization_do_not_record_transition
 
     assert room.physical_status == "physical_neutralization_failed"
     assert room._timestamps.elapsed(room._ac_timestamp_key, now) == pytest.approx(42.0)
+    room._cleanup()
 
 
 @pytest.mark.parametrize("previous_output", [OutputMode.HEAT, OutputMode.FAN_ONLY])
@@ -989,3 +996,4 @@ async def test_confirmed_neutralization_records_conservative_ac_off_timestamp(
 
     assert room.physical_status == "outputs_neutral_after_failure"
     assert room._timestamps.elapsed(room._ac_timestamp_key, now) == 0.0
+    room._cleanup()

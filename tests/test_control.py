@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from custom_components.virtual_hvac.const import WindowOpenBehavior
 from custom_components.virtual_hvac.control import (
     ControlInput,
@@ -64,6 +66,30 @@ def test_off_disables_all_outputs() -> None:
     assert result.output_mode is OutputMode.OFF
     assert result.heat_demand is False
     assert result.heater_active is False
+
+
+@pytest.mark.parametrize("mode", [VirtualMode.HEAT, VirtualMode.AUTO])
+@pytest.mark.parametrize("previous", [OutputMode.HEAT, OutputMode.HEAT_ASSIST])
+def test_historical_heat_is_not_an_active_hysteresis_latch(mode, previous):
+    result = decide(
+        mode,
+        temperature=21.9,
+        memory=ControlMemory(last_output_mode=previous),
+        config=room_config(heating_hysteresis_on=1, heating_hysteresis_off=0),
+    )
+    assert result.output_mode is OutputMode.OFF
+
+
+@pytest.mark.parametrize("elapsed", [0, 1000])
+def test_historical_cool_is_not_an_active_auto_latch(elapsed):
+    result = decide(
+        VirtualMode.AUTO,
+        temperature=22.1,
+        memory=ControlMemory(last_output_mode=OutputMode.COOL),
+        ac_on_elapsed=elapsed,
+        config=room_config(cooling_hysteresis_on=1, cooling_hysteresis_off=0),
+    )
+    assert result.output_mode is OutputMode.OFF
 
 
 def test_missing_temperature_fails_closed() -> None:
@@ -477,7 +503,7 @@ def test_auto_keeps_cooling_until_minimum_on_time() -> None:
             ac_on_elapsed_seconds=60,
             mode_elapsed_seconds=1000,
         ),
-        ControlMemory(last_output_mode=OutputMode.COOL),
+        ControlMemory(last_output_mode=OutputMode.COOL, cooling_active=True),
     )
     assert result.output_mode is OutputMode.COOL
     assert result.reason == "ac_minimum_on"

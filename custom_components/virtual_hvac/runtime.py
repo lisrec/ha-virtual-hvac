@@ -8,8 +8,21 @@ from collections.abc import Callable
 from dataclasses import replace
 from datetime import datetime
 
-from homeassistant.const import STATE_OFF, STATE_ON, STATE_UNAVAILABLE, STATE_UNKNOWN
-from homeassistant.core import Event, EventStateChangedData, HomeAssistant, State, callback
+from homeassistant.const import (
+    EVENT_STATE_REPORTED,
+    STATE_OFF,
+    STATE_ON,
+    STATE_UNAVAILABLE,
+    STATE_UNKNOWN,
+)
+from homeassistant.core import (
+    Event,
+    EventStateChangedData,
+    EventStateReportedData,
+    HomeAssistant,
+    State,
+    callback,
+)
 from homeassistant.helpers.event import async_call_later, async_track_state_change_event
 from homeassistant.util.dt import utcnow
 from homeassistant.util.unit_conversion import TemperatureConverter
@@ -69,7 +82,9 @@ class RoomRuntime:
         self._timestamps = timestamps or ProtectionTimestamps(None)
         self._listeners: set[Listener] = set()
         self._remove_state_listener: Callable[[], None] | None = None
+        self._remove_report_listener: Callable[[], None] | None = None
         self._cancel_timer: Callable[[], None] | None = None
+        self._cancel_freshness_timer: Callable[[], None] | None = None
         self._lock = asyncio.Lock()
         self._generation = 0
         self._ready = False
@@ -101,6 +116,11 @@ class RoomRuntime:
         self._remove_state_listener = async_track_state_change_event(
             self.hass, entities, self._async_source_changed
         )
+        self._remove_report_listener = self.hass.bus.async_listen(
+            EVENT_STATE_REPORTED,
+            self._async_temperature_reported,
+            event_filter=self._temperature_report_filter,
+        )
 
     async def async_finish_startup(self) -> bool:
         """Neutralize known outputs, validate live inputs, then arm restored intent."""
@@ -128,11 +148,28 @@ class RoomRuntime:
         await self.async_evaluate()
         return self.physical_status == "outputs_confirmed"
 
-    async def async_stop(self, *, neutralize: bool = True) -> bool:
-        """Neutralize before removing ownership; refuse cleanup on failed acknowledgement."""
+    @callback
+    def _disarm(self) -> None:
+        """Invalidate pending work before any shutdown awaits."""
         self._stopping = True
         self._ready = False
         self._generation += 1
+        self._cancel_retry_timer()
+        if self._cancel_freshness_timer is not None:
+            self._cancel_freshness_timer()
+            self._cancel_freshness_timer = None
+        self.decision = replace(
+            self.decision,
+            output_mode=OutputMode.OFF,
+            heat_demand=False,
+            heater_active=False,
+            ac_target_temperature=None,
+            reason="shutdown_disarmed",
+        )
+
+    async def async_stop(self, *, neutralize: bool = True, cleanup: bool = True) -> bool:
+        """Neutralize before removing ownership; refuse cleanup on failed acknowledgement."""
+        self._disarm()
         if neutralize:
             async with self._lock:
                 was_ac_active = self._physical_ac_active()
@@ -143,7 +180,6 @@ class RoomRuntime:
                     self._actuating = False
                 if not result.success:
                     self.physical_status = "shutdown_neutralization_failed"
-                    self._stopping = False
                     self._publish()
                     return False
                 if was_ac_active:
@@ -158,15 +194,22 @@ class RoomRuntime:
                     ac_target_temperature=None,
                     reason="shutdown_neutralized",
                 )
-        self._cleanup()
+        if cleanup:
+            self._cleanup()
         return True
 
     @callback
     def _cleanup(self) -> None:
+        if self._remove_report_listener is not None:
+            self._remove_report_listener()
+            self._remove_report_listener = None
         if self._remove_state_listener is not None:
             self._remove_state_listener()
             self._remove_state_listener = None
         self._cancel_retry_timer()
+        if self._cancel_freshness_timer is not None:
+            self._cancel_freshness_timer()
+            self._cancel_freshness_timer = None
         self._listeners.clear()
 
     @callback
@@ -181,7 +224,37 @@ class RoomRuntime:
         return remove
 
     @callback
+    def _temperature_report_filter(self, data: EventStateReportedData) -> bool:
+        return data["entity_id"] in self.config.temperature_sensor_entity_ids
+
+    @callback
+    def _async_temperature_reported(self, event: Event[EventStateReportedData]) -> None:
+        # Unchanged reports refresh freshness, not protection timers or actuation.
+        self._schedule_freshness_timer()
+        if (
+            self._ready
+            and not self._stopping
+            and self.decision.reason == "no_valid_temperature"
+            and self.current_temperature is not None
+        ):
+            self.hass.async_create_task(
+                self.async_evaluate(), f"Virtual HVAC source recovered {self.subentry_id}"
+            )
+
+    @callback
     def _async_source_changed(self, event: Event[EventStateChangedData]) -> None:
+        if self._stopping:
+            state = event.data["new_state"]
+            if (
+                event.data["entity_id"] in self.config.output_entity_ids()
+                and state is not None
+                and state.state != STATE_OFF
+            ):
+                self.hass.async_create_task(
+                    self.async_stop(cleanup=False),
+                    f"Virtual HVAC shutdown recovery {self.subentry_id}",
+                )
+            return
         if not self._ready or self._stopping:
             return
         if event.data["entity_id"] in self.config.output_entity_ids() and (
@@ -201,7 +274,7 @@ class RoomRuntime:
                 continue
             max_age = self.config.temperature_sensor_max_age_seconds
             reported = getattr(state, "last_reported", state.last_updated)
-            if max_age is not None and (now - reported).total_seconds() > max_age:
+            if max_age is not None and (now - reported).total_seconds() >= max_age:
                 continue
             source_unit = state.attributes.get("unit_of_measurement")
             try:
@@ -225,7 +298,7 @@ class RoomRuntime:
     @property
     def heat_demand(self) -> bool:
         """Logical demand is fail-closed independently of physical reachability."""
-        return self._ready and self.decision.heat_demand
+        return self._ready and self.current_temperature is not None and self.decision.heat_demand
 
     @property
     def status(self) -> str:
@@ -330,6 +403,7 @@ class RoomRuntime:
 
     async def _async_reconcile_once(self) -> None:
         self._cancel_retry_timer()
+        self._schedule_freshness_timer()
         now = utcnow()
         window_open, window_open_elapsed = self._window_status(now)
         decision = self._controller.decide(
@@ -396,7 +470,7 @@ class RoomRuntime:
             last_active = OutputMode.OFF
         self._memory = ControlMemory(
             last_output_mode=last_active,
-            heating_active=decision.heat_demand,
+            heating_active=decision.output_mode in (OutputMode.HEAT, OutputMode.HEAT_ASSIST),
             cooling_active=decision.output_mode is OutputMode.COOL,
         )
         self.decision = decision
@@ -528,6 +602,35 @@ class RoomRuntime:
         return self._timestamps.elapsed(self._ac_timestamp_key, now)
 
     @callback
+    def _schedule_freshness_timer(self) -> None:
+        """Reconcile at each source expiry, independently of protection retries."""
+        if self._cancel_freshness_timer is not None:
+            self._cancel_freshness_timer()
+            self._cancel_freshness_timer = None
+        max_age = self.config.temperature_sensor_max_age_seconds
+        if max_age is None or not self._ready or self._stopping:
+            return
+        now = utcnow()
+        remaining = [
+            max_age - (now - state.last_reported).total_seconds()
+            for entity_id in self.config.temperature_sensor_entity_ids
+            if (state := self.hass.states.get(entity_id)) is not None
+            and (now - state.last_reported).total_seconds() < max_age
+        ]
+        if remaining:
+            self._cancel_freshness_timer = async_call_later(
+                self.hass, min(remaining), self._async_freshness_expired
+            )
+
+    @callback
+    def _async_freshness_expired(self, now: datetime) -> None:
+        self._cancel_freshness_timer = None
+        if self._ready and not self._stopping:
+            self.hass.async_create_task(
+                self.async_evaluate(), f"Virtual HVAC source expiry {self.subentry_id}"
+            )
+
+    @callback
     def _async_retry(self, now: datetime) -> None:
         self._cancel_timer = None
         self.hass.async_create_task(
@@ -631,8 +734,10 @@ class ControllerRuntime:
         self._stopping = True
         self._startup_complete = False
         self._shared_generation += 1
+        self._cancel_shared_retry()
+        for room in self.rooms.values():
+            room._disarm()
         if not await self._async_neutralize_all():
-            self._stopping = False
             return False
         if self._remove_shared_listener is not None:
             self._remove_shared_listener()
@@ -648,7 +753,7 @@ class ControllerRuntime:
         shared_safe = await self._async_neutralize_shared("shutdown")
         rooms_safe = True
         for room in self.rooms.values():
-            if not await room.async_stop():
+            if not await room.async_stop(cleanup=False):
                 rooms_safe = False
         return shared_safe and rooms_safe
 
@@ -701,6 +806,14 @@ class ControllerRuntime:
 
     @callback
     def _async_shared_source_changed(self, event: Event[EventStateChangedData]) -> None:
+        if self._stopping:
+            state = event.data["new_state"]
+            if state is not None and state.state != STATE_OFF:
+                self.hass.async_create_task(
+                    self._async_neutralize_shared("shutdown"),
+                    f"Virtual HVAC shared shutdown recovery {self.entry_id}",
+                )
+            return
         if not self._startup_complete or self._stopping:
             return
         self.hass.async_create_task(

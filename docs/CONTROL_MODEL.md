@@ -34,7 +34,7 @@ For each selected sensor:
 
 If no valid value remains, the room climate entity is unavailable, heat demand is false, and off outputs are requested.
 
-The default maximum age is 300 seconds and the configured range is 1–604800 seconds. Freshness uses the source state's authoritative report time when available.
+The default maximum age is 300 seconds and the configured range is 1–604800 seconds. Freshness uses the source state's authoritative report time when available. An independent expiry timer reevaluates each source at that boundary, even without another state event. Identical temperature reports refresh this timer without resetting protection retries or reapplying an unchanged output. Commission the sensor's actual measurement reporting interval and the Home Assistant integration's state-write behavior to meet this freshness contract; cached temperature fields in unrelated payloads are not proof of a new measurement.
 
 ## Startup barrier
 
@@ -73,7 +73,7 @@ When heating is active, demand continues while:
 T < S + H_off
 ```
 
-At or above the stop threshold, the room selects off with `heat_target_satisfied`. The automatic mode uses a strict start boundary; see below.
+At or above the stop threshold, the room selects off with `heat_target_satisfied`. Once off is acknowledged, a later drop inside the dead band does not restart heating. Active heating/cooling latches follow acknowledged output paths (including AC-only heat); the retained last-active path is used only for reversal protection. The automatic mode uses a strict start boundary; see below.
 
 Heating requests the primary heater when configured. Without a primary heater, AC becomes the heating output only when every configured AC reports heat support; this AC-only path does not publish shared heat-source demand. A heating climate output receives target plus TRV offset. Boost selects heat assist by default when enabled and every configured AC reports heat support.
 

@@ -91,7 +91,7 @@ Controller or room updates reload the parent config entry. Reconfiguration can t
 
 ### Unload
 
-Unload first requests neutral state for the shared relay and every room output and requires Home Assistant state acknowledgement. If any reachable output cannot confirm off, runtime refuses cleanup so ownership is not silently abandoned. After successful neutralization it removes entity platforms, listeners, delayed callbacks, and flushes protection timestamps. An already unreachable active device still requires physical intervention.
+Unload disarms every room before awaiting neutralization of the shared relay and room outputs. OFF attempts continue across all bank members after an individual failure; any unconfirmed output still refuses unload. A refused unload retains every owner's subscriptions and only retries neutralization when outputs report back. It does not rearm heating or cooling, including after a user mode request; a successful explicit reload/unload and startup barrier are required to rearm. Cleanup removes platforms, listeners and delayed callbacks only after all outputs have confirmed neutral. An already unreachable active device still requires independent physical protection or intervention.
 
 ## Logical demand fail-closed versus physical fail-safe
 

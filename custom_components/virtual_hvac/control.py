@@ -207,10 +207,7 @@ class RoomController:
         temperature = inputs.current_temperature
         if temperature is None:
             return self._off("no_valid_temperature", rapid=False, silent=False)
-        heating = memory.heating_active or memory.last_output_mode in (
-            OutputMode.HEAT,
-            OutputMode.HEAT_ASSIST,
-        )
+        heating = memory.heating_active
         if heating:
             heating = temperature < (
                 inputs.target_temperature + self._config.heating_hysteresis_off
@@ -275,13 +272,10 @@ class RoomController:
             return self._off("no_valid_temperature", rapid=False, silent=False)
         target = inputs.target_temperature
 
-        if memory.last_output_mode in (OutputMode.HEAT, OutputMode.HEAT_ASSIST):
+        if memory.heating_active:
             if temperature < target + self._config.heating_hysteresis_off:
                 return self._heating_decision(inputs, rapid, silent, "auto_continue_heat")
-        elif (
-            memory.last_output_mode is OutputMode.COOL
-            and temperature > target - self._config.cooling_hysteresis_off
-        ):
+        elif memory.cooling_active and temperature > target - self._config.cooling_hysteresis_off:
             return ControlDecision(
                 OutputMode.COOL,
                 False,
@@ -292,7 +286,7 @@ class RoomController:
                 "auto_continue_cool",
             )
         elif (
-            memory.last_output_mode is OutputMode.COOL
+            memory.cooling_active
             and self._config.enable_safe_cooling_delay
             and inputs.ac_on_elapsed_seconds < self._config.minimum_seconds_cooling_on
         ):

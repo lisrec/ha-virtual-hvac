@@ -374,38 +374,48 @@ class ActuatorAdapter:
         entity_ids = self.config.ac_entity_ids
         if not entity_ids:
             return mode is HVACMode.OFF
+        success = True
         for entity_id in entity_ids:
             if not await self._async_set_climate_mode(entity_id, mode):
-                return False
+                success = False
+                if mode is not HVACMode.OFF:
+                    return False
             if (
                 mode is not HVACMode.OFF
                 and target_temperature is not None
                 and not await self._async_set_climate_temperature(entity_id, target_temperature)
             ):
                 return False
-        return True
+        return success
 
     async def _async_set_heater(self, enabled: bool, target_temperature: float) -> bool:
         """Set every heater in the bank and require each one to acknowledge."""
         entity_ids = self.config.heater_entity_ids
         if not entity_ids:
             return not enabled
+        success = True
         for entity_id in entity_ids:
             domain = split_entity_id(entity_id)[0]
             if domain == CLIMATE_DOMAIN:
                 desired_mode = HVACMode.HEAT if enabled else HVACMode.OFF
                 if not await self._async_set_climate_mode(entity_id, desired_mode):
-                    return False
+                    success = False
+                    if enabled:
+                        return False
                 if enabled and not await self._async_set_climate_temperature(
                     entity_id, target_temperature + self.config.trv_target_offset
                 ):
                     return False
             elif domain == "switch":
                 if not await async_set_switch_confirmed(self.hass, entity_id, enabled):
-                    return False
+                    success = False
+                    if enabled:
+                        return False
             else:
-                return False
-        return True
+                success = False
+                if enabled:
+                    return False
+        return success
 
     async def _async_set_climate_mode(self, entity_id: str, mode: HVACMode) -> bool:
         state = self.hass.states.get(entity_id)
