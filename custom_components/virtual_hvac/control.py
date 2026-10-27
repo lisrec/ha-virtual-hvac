@@ -228,6 +228,8 @@ class RoomController:
         reason: str,
     ) -> ControlDecision:
         """Select a primary-heater, assisted, or AC-only heating path."""
+        if self._config.shared_heat_request:
+            return ControlDecision(OutputMode.HEAT, True, False, None, rapid, silent, reason)
         if not self._config.heater_entity_ids:
             if not inputs.ac_heating_supported:
                 return self._off("ac_heat_unavailable", rapid=False, silent=False)

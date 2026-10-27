@@ -61,6 +61,7 @@ class RoomConfig:
     temperature_sensor_entity_ids: tuple[str, ...]
     ac_entity_ids: tuple[str, ...] = ()
     heater_entity_ids: tuple[str, ...] = ()
+    shared_heat_request: bool = False
     window_entity_ids: tuple[str, ...] = ()
     window_open_behavior: WindowOpenBehavior = WindowOpenBehavior.TURN_OFF_HVAC
     window_open_delay_minutes: float = DEFAULT_WINDOW_OPEN_DELAY_MINUTES
@@ -81,6 +82,10 @@ class RoomConfig:
     def __post_init__(self) -> None:
         if not self.name.strip():
             raise ValueError("room name must not be empty")
+        if not isinstance(self.shared_heat_request, bool):
+            raise ValueError("shared heat request must be boolean")
+        if self.shared_heat_request and self.heater_entity_ids:
+            raise ValueError("shared heat request cannot configure local heaters")
         if not isinstance(self.enable_safe_cooling_delay, bool):
             raise ValueError("cooling delay flag must be boolean")
         if not isinstance(self.window_open_behavior, WindowOpenBehavior):
@@ -102,7 +107,7 @@ class RoomConfig:
             raise ValueError("duplicate heater entities are not allowed")
         if len(set(self.window_entity_ids)) != len(self.window_entity_ids):
             raise ValueError("duplicate window sensor entities are not allowed")
-        if not self.ac_entity_ids and not self.heater_entity_ids:
+        if not self.ac_entity_ids and not self.heater_entity_ids and not self.shared_heat_request:
             raise ValueError("at least one HVAC actuator is required")
         outputs = self.output_entity_ids()
         if len(outputs) != len(set(outputs)):

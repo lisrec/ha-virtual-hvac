@@ -319,7 +319,7 @@ class RoomRuntime:
     def supported_virtual_modes(self) -> list[VirtualMode]:
         """Derive modes from currently configured and supported actuators."""
         result = [VirtualMode.OFF]
-        if self.config.heater_entity_ids:
+        if self.config.heater_entity_ids or self.config.shared_heat_request:
             result.append(VirtualMode.HEAT)
         if self.config.ac_entity_ids:
             states = [self.hass.states.get(entity_id) for entity_id in self.config.ac_entity_ids]
@@ -573,7 +573,7 @@ class RoomRuntime:
     def _decision_uses_ac(decision: ControlDecision) -> bool:
         """Return whether a decision has the AC compressor path active."""
         return decision.output_mode in _AC_ACTIVE_MODES or (
-            decision.output_mode is OutputMode.HEAT and not decision.heater_active
+            decision.output_mode is OutputMode.HEAT and not decision.heat_demand
         )
 
     @staticmethod
@@ -591,7 +591,7 @@ class RoomRuntime:
             OutputMode.FAN_ONLY: "fan_only",
             OutputMode.HEAT_ASSIST: "heat",
         }.get(output, STATE_OFF)
-        if output is OutputMode.HEAT and not self.decision.heater_active:
+        if output is OutputMode.HEAT and not self.decision.heat_demand:
             ac_expected = "heat"
         for entity_id in self.config.ac_entity_ids:
             ac_state = self.hass.states.get(entity_id)

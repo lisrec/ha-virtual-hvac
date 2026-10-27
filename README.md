@@ -42,7 +42,7 @@ These limitations make staged commissioning and independent safety controls mand
 
 - Home Assistant 2026.8 or newer.
 - One or more temperature sensors for each room.
-- At least one room heating or cooling output.
+- At least one room heating or cooling output, or an explicit shared heat request.
 - Exclusive output ownership during operation.
 - Suitable physical interlocks and a safe HVAC installation.
 
@@ -70,6 +70,8 @@ See [CONFIGURATION.md](docs/CONFIGURATION.md) for every field and validation rul
 ## Control behavior
 
 The room controller selects one mutually exclusive output path: off, heat, heat assist, cool, dry, or fan only. Room heat demand is aggregated with logical OR. Only the controller-level arbiter may request the optional shared relay.
+
+For an always-open shared floor circuit, enable the room option `shared_heat_request` (default off) and leave local heaters empty. The room requests shared CO heat with its AC confirmed off; it does not claim a local heater acknowledgement and never adds automatic AC heat assist, including in boost. Temperature freshness, window interlocks, target satisfaction, explicit off and unload withdraw this room's demand. **They cannot individually shut off an always-open floor while another room requests the boiler.** With an external boiler OR arbiter, leave the integration shared relay unconfigured; this option adds no relay writer. Normal AC-only rooms retain AC heating when this option is off.
 
 See [CONTROL_MODEL.md](docs/CONTROL_MODEL.md) for formulas, modes, presets, timers, and status reasons. See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for ownership and lifecycle details.
 

@@ -51,6 +51,7 @@ from .const import (
     CONF_NAME,
     CONF_RAPID_ENTITY,
     CONF_REVERSAL_GUARD,
+    CONF_SHARED_HEAT_REQUEST,
     CONF_SHARED_HEAT_SOURCE,
     CONF_SILENT_ENTITY,
     CONF_TEMPERATURE_MAX_AGE,
@@ -143,6 +144,10 @@ def _room_schema(defaults: Mapping[str, Any] | None = None) -> vol.Schema:
                 CONF_WINDOW_ENTITIES,
                 default=values.get(CONF_WINDOW_ENTITIES, []),
             ): EntitySelector(EntitySelectorConfig(domain=Platform.BINARY_SENSOR, multiple=True)),
+            vol.Required(
+                CONF_SHARED_HEAT_REQUEST,
+                default=values.get(CONF_SHARED_HEAT_REQUEST, False),
+            ): BooleanSelector(),
             vol.Required(
                 CONF_WINDOW_OPEN_BEHAVIOR,
                 default=values.get(

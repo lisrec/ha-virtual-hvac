@@ -7,7 +7,7 @@
     "error": {
       "actuator_already_assigned": "An output is already assigned elsewhere in this controller. Every physical output must have only one Virtual HVAC owner, and the shared heat-source relay cannot be used for a room output.",
       "invalid_controller_config": "The controller settings are invalid. Check the relay and protection times.",
-      "invalid_room_config": "The room settings are invalid. Select at least one temperature sensor and at least one heating or cooling output, then check all ranges.",
+      "invalid_room_config": "The room settings are invalid. Select temperature sensors and a heating/cooling output or shared heat request. Shared heat request cannot be combined with local heaters. Check all ranges.",
       "invalid_temperature_sensor": "Every selected temperature source must exist and report a temperature device class or temperature unit."
     },
     "step": {
@@ -57,7 +57,7 @@
       "entry_type": "Room",
       "error": {
         "actuator_already_assigned": "An output is already assigned elsewhere in this controller. Every physical output must have only one Virtual HVAC owner, and the shared heat-source relay cannot be used for a room output.",
-        "invalid_room_config": "The room settings are invalid. Select at least one temperature sensor and at least one heating or cooling output, then check all ranges.",
+        "invalid_room_config": "The room settings are invalid. Select temperature sensors and a heating/cooling output or shared heat request. Shared heat request cannot be combined with local heaters. Check all ranges.",
         "invalid_temperature_sensor": "Every selected temperature source must exist and report a temperature device class or temperature unit."
       },
       "initiate_flow": {
@@ -74,6 +74,7 @@
             "cooling_hysteresis_off": "Cooling stop offset",
             "cooling_hysteresis_on": "Cooling start offset",
             "heater_entity_ids": "Heater or TRV outputs (all selected)",
+            "shared_heat_request": "Request shared heating without a local valve",
             "heating_hysteresis_off": "Heating stop offset",
             "heating_hysteresis_on": "Heating start offset",
             "mode_reversal_guard_seconds": "Heat/cool reversal guard",
@@ -95,6 +96,7 @@
             "cooling_hysteresis_off": "While cooling, stop when temperature reaches the target minus this offset; 0.0 stops at the target.",
             "cooling_hysteresis_on": "In automatic mode, start cooling only when temperature is above the target plus this offset; the exact boundary remains idle.",
             "heater_entity_ids": "Optional one or more heating climate entities, TRVs, or switches. All selected heaters are controlled together; every selected output must be dedicated to this integration and able to acknowledge its state.",
+            "shared_heat_request": "For an always-open shared floor circuit only. Requests shared heat with AC off, without a local heater acknowledgement or AC heat assist. Leave local heaters empty. This room cannot shut its floor off while another room requests the boiler.",
             "heating_hysteresis_off": "While heating, stop when temperature reaches the target plus this offset; 0.0 stops at the target.",
             "heating_hysteresis_on": "In automatic mode, start heating only when temperature is below the target minus this offset; the exact boundary remains idle.",
             "mode_reversal_guard_seconds": "Seconds that must pass before changing between heating and cooling paths.",
@@ -120,6 +122,7 @@
             "cooling_hysteresis_off": "Cooling stop offset",
             "cooling_hysteresis_on": "Cooling start offset",
             "heater_entity_ids": "Heater or TRV outputs (all selected)",
+            "shared_heat_request": "Request shared heating without a local valve",
             "heating_hysteresis_off": "Heating stop offset",
             "heating_hysteresis_on": "Heating start offset",
             "mode_reversal_guard_seconds": "Heat/cool reversal guard",
@@ -141,6 +144,7 @@
             "cooling_hysteresis_off": "While cooling, stop when temperature reaches the target minus this offset; 0.0 stops at the target.",
             "cooling_hysteresis_on": "In automatic mode, start cooling only when temperature is above the target plus this offset; the exact boundary remains idle.",
             "heater_entity_ids": "Optional one or more heating climate entities, TRVs, or switches. All selected heaters are controlled together; every selected output must be dedicated to this integration and able to acknowledge its state.",
+            "shared_heat_request": "For an always-open shared floor circuit only. Requests shared heat with AC off, without a local heater acknowledgement or AC heat assist. Leave local heaters empty. This room cannot shut its floor off while another room requests the boiler.",
             "heating_hysteresis_off": "While heating, stop when temperature reaches the target plus this offset; 0.0 stops at the target.",
             "heating_hysteresis_on": "In automatic mode, start heating only when temperature is below the target minus this offset; the exact boundary remains idle.",
             "mode_reversal_guard_seconds": "Seconds that must pass before changing between heating and cooling paths.",

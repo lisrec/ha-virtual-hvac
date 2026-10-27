@@ -239,13 +239,15 @@ class ActuatorAdapter:
                     await self.async_neutralize(target_temperature)
                     return ActuationResult(False, "ac_stop_or_start_not_confirmed")
             elif output in (OutputMode.HEAT, OutputMode.HEAT_ASSIST):
-                if decision.heater_active:
+                if decision.heat_demand:
                     stable_heat_assist = (
                         output is OutputMode.HEAT_ASSIST and self._heat_assist_modes_active()
                     )
                     if not stable_heat_assist and not await self._async_set_ac(HVACMode.OFF, None):
                         return ActuationResult(False, "ac_stop_not_confirmed")
-                    if not await self._async_set_heater(True, target_temperature):
+                    if decision.heater_active and not await self._async_set_heater(
+                        True, target_temperature
+                    ):
                         await self.async_neutralize(target_temperature)
                         return ActuationResult(False, "heater_start_not_confirmed")
                     if output is OutputMode.HEAT_ASSIST and not await self._async_set_ac(
@@ -284,7 +286,7 @@ class ActuatorAdapter:
             OutputMode.FAN_ONLY: HVACMode.FAN_ONLY,
             OutputMode.HEAT_ASSIST: HVACMode.HEAT,
         }.get(output, HVACMode.OFF)
-        if output is OutputMode.HEAT and not decision.heater_active:
+        if output is OutputMode.HEAT and not decision.heat_demand:
             ac_mode = HVACMode.HEAT
         expected = dict.fromkeys(self.config.ac_entity_ids, ac_mode.value)
         for entity_id in self.config.heater_entity_ids:

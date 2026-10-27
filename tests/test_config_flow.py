@@ -38,6 +38,34 @@ ROOM_DATA = {
 }
 
 
+@pytest.mark.asyncio
+async def test_shared_heat_room_flow_persists_and_reconfigures(hass) -> None:
+    set_source_entities(hass)
+    entry = MockConfigEntry(domain=DOMAIN, title="Virtual HVAC", data=CONTROLLER_DATA)
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, SUBENTRY_ROOM), context={"source": config_entries.SOURCE_USER}
+    )
+    key = next(key for key in result["data_schema"].schema if key.schema == "shared_heat_request")
+    assert key.default() is False
+    data = ROOM_DATA | {"heater_entity_ids": [], "shared_heat_request": True}
+    result = await hass.config_entries.subentries.async_configure(result["flow_id"], data)
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    subentry = next(iter(entry.subentries.values()))
+    assert subentry.data["shared_heat_request"] is True
+    result = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, SUBENTRY_ROOM),
+        context={"source": config_entries.SOURCE_RECONFIGURE, "subentry_id": subentry.subentry_id},
+    )
+    key = next(key for key in result["data_schema"].schema if key.schema == "shared_heat_request")
+    assert key.default() is True
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"], data | {"shared_heat_request": False}
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert entry.subentries[subentry.subentry_id].data["shared_heat_request"] is False
+
+
 def set_source_entities(hass) -> None:
     hass.states.async_set(
         "sensor.test_temperature",
