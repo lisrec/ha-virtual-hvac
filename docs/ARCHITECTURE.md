@@ -81,7 +81,7 @@ This is **integration-local ownership**, not system-wide exclusivity. Home Assis
 
 ### Startup
 
-Room listeners are registered before entities are forwarded. Each virtual climate entity restores only intent: its last valid mode, target, and preset. Runtime remains internally disarmed. The startup barrier then neutralizes the shared relay and every room output, requires off acknowledgement, validates fresh temperature, window state, and output states, and only then arms restored intent. Setup fails if the barrier cannot establish a known neutral state.
+Room listeners are registered before entities are forwarded. Each virtual climate entity restores only intent: its last valid mode, Celsius target, and preset. Intent is stored using HA's native extra restore data separately from availability; an unavailable state published during failed setup must not overwrite HEAT intent with OFF on setup retry. Runtime remains internally disarmed. The startup barrier then neutralizes the shared relay and every room output, requires off acknowledgement, validates fresh temperature, window state, and output states, and only then arms restored intent. Setup fails if the barrier cannot establish a known neutral state.
 
 This internal startup barrier is not a user-selectable shadow mode. During first commissioning, keep physical outputs independently isolated until startup and restored intent have been observed safely.
 
@@ -91,7 +91,7 @@ Controller or room updates reload the parent config entry. Reconfiguration can t
 
 ### Unload
 
-Unload disarms every room before awaiting neutralization of the shared relay and room outputs. OFF attempts continue across all bank members after an individual failure; any unconfirmed output still refuses unload. A refused unload retains every owner's subscriptions and only retries neutralization when outputs report back. It does not rearm heating or cooling, including after a user mode request; a successful explicit reload/unload and startup barrier are required to rearm. Cleanup removes platforms, listeners and delayed callbacks only after all outputs have confirmed neutral. An already unreachable active device still requires independent physical protection or intervention.
+Unload disarms every room before awaiting neutralization of the shared relay and room outputs. OFF attempts continue across all bank members after an individual failure; any unconfirmed output still refuses unload. A refused unload retains every owner's subscriptions and retries neutralization on output recovery and bounded command-backoff timers. It does not rearm heating or cooling, including after a user mode request; a successful explicit reload/unload and startup barrier are required to rearm. Listener and delayed-callback cleanup occurs only after all outputs have confirmed neutral **and platform unload has succeeded**; a platform unload rejection retains disarmed OFF-only ownership. An already unreachable active device still requires independent physical protection or intervention.
 
 ## Logical demand fail-closed versus physical fail-safe
 

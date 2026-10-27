@@ -28,6 +28,7 @@ from homeassistant.util.unit_system import US_CUSTOMARY_SYSTEM
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_mock_service
 
 from custom_components.virtual_hvac.const import DOMAIN, SUBENTRY_ROOM
+from custom_components.virtual_hvac.control import Preset, VirtualMode
 
 
 def make_entry(
@@ -168,6 +169,46 @@ def entity_id(
     )
     assert found is not None
     return found
+
+
+@pytest.mark.asyncio
+async def test_setup_retry_preserves_restored_heat_intent(hass) -> None:
+    """Exercise HA's actual unload, failed setup and retry lifecycle."""
+    set_source_states(hass)
+    # State-only preset switches need callable services as well as event ACKs.
+    async_mock_service(hass, "switch", "turn_on")
+    async_mock_service(hass, "switch", "turn_off")
+    entry, subentry = make_entry(shared=False)
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    room = entry.runtime_data.rooms[subentry.subentry_id]
+    await room.async_set_target_temperature(24)
+    await room.async_set_preset(Preset.SLEEP)
+    await room.async_set_mode(VirtualMode.HEAT)
+    await hass.async_block_till_done()
+    assert room.heat_demand
+    assert hass.states.get("switch.test_silent").state == STATE_ON
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    for source in ("sensor.test_temperature_one", "sensor.test_temperature_two"):
+        hass.states.async_set(source, "unavailable")
+    assert not await hass.config_entries.async_setup(entry.entry_id)
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+    await hass.async_block_till_done()
+    entry.async_cancel_retry_setup()
+    set_source_states(hass)
+    entry._async_setup_again(hass)
+    await hass.async_block_till_done()
+    try:
+        restored = entry.runtime_data.rooms[subentry.subentry_id]
+        assert restored.mode is VirtualMode.HEAT
+        assert restored.target_temperature == 24
+        assert restored.preset is Preset.SLEEP
+        assert restored.heat_demand
+        assert hass.states.get("climate.test_heater").state == "heat"
+        assert hass.states.get("switch.test_silent").state == STATE_ON
+    finally:
+        assert await hass.config_entries.async_unload(entry.entry_id)
 
 
 @pytest.mark.asyncio

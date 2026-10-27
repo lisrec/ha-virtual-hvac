@@ -90,6 +90,7 @@ class RoomRuntime:
         self._ready = False
         self._stopping = False
         self._actuating = False
+        self._command_failures = 0
 
     @property
     def _output_timestamp_key(self) -> str:
@@ -180,8 +181,13 @@ class RoomRuntime:
                     self._actuating = False
                 if not result.success:
                     self.physical_status = "shutdown_neutralization_failed"
+                    self._cancel_timer = async_call_later(
+                        self.hass, min(5 * 2**self._command_failures, 60), self._async_retry
+                    )
+                    self._command_failures = min(self._command_failures + 1, 4)
                     self._publish()
                     return False
+                self._command_failures = 0
                 if was_ac_active:
                     self._timestamps.record(self._ac_timestamp_key)
                 self._timestamps.record(self._output_timestamp_key)
@@ -257,10 +263,16 @@ class RoomRuntime:
             return
         if not self._ready or self._stopping:
             return
-        if event.data["entity_id"] in self.config.output_entity_ids() and (
-            self._lock.locked() or self._physical_outputs_match_decision()
-        ):
-            return
+        if event.data["entity_id"] in self.config.output_entity_ids():
+            old = event.data["old_state"]
+            new = event.data["new_state"]
+            recovered = (
+                (old is None or old.state in (STATE_UNKNOWN, STATE_UNAVAILABLE))
+                and new is not None
+                and new.state not in (STATE_UNKNOWN, STATE_UNAVAILABLE)
+            )
+            if self._lock.locked() or (not recovered and self._physical_outputs_match_decision()):
+                return
         self.hass.async_create_task(
             self.async_evaluate(), f"Virtual HVAC room update {self.subentry_id}"
         )
@@ -340,7 +352,15 @@ class RoomRuntime:
         self, mode: VirtualMode, target_temperature: float, preset: Preset
     ) -> None:
         """Restore intent only; startup barrier owns the first physical actuation."""
-        if mode in self.supported_virtual_modes():
+        # Availability is not intent: a transient AC outage must not persist OFF
+        # over a previously valid mode. Startup still requires authoritative outputs,
+        # and the adapter/controller validate live capabilities before actuation.
+        ac_unavailable = any(
+            (state := self.hass.states.get(entity_id)) is None
+            or state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE)
+            for entity_id in self.config.ac_entity_ids
+        )
+        if mode in self.supported_virtual_modes() or ac_unavailable:
             self.mode = mode
         if math.isfinite(target_temperature) and 5.0 <= target_temperature <= 35.0:
             self.target_temperature = target_temperature
@@ -389,8 +409,12 @@ class RoomRuntime:
                 finally:
                     self._actuating = False
                 if not stale_neutral.success:
+                    self._disarm()
+                    self._cancel_timer = async_call_later(
+                        self.hass, min(5 * 2**self._command_failures, 60), self._async_retry
+                    )
+                    self._command_failures = min(self._command_failures + 1, 4)
                     self.physical_status = "stale_command_neutralization_failed"
-                    self._ready = False
                     self.decision = replace(
                         self.decision,
                         output_mode=OutputMode.OFF,
@@ -399,6 +423,21 @@ class RoomRuntime:
                         reason="stale_command_neutralization_failed",
                     )
                     break
+                # This OFF is real even though the command generation was superseded.
+                # Publish it to the next decision's memory and both protection clocks.
+                confirmed_at = utcnow()
+                self._timestamps.record(self._output_timestamp_key, confirmed_at)
+                if self.config.ac_entity_ids:
+                    self._timestamps.record(self._ac_timestamp_key, confirmed_at)
+                self.decision = replace(
+                    self.decision,
+                    output_mode=OutputMode.OFF,
+                    heat_demand=False,
+                    heater_active=False,
+                    ac_target_temperature=None,
+                    reason="stale_command_neutralized",
+                )
+                self._memory = replace(self._memory, heating_active=False, cooling_active=False)
         self._publish()
 
     async def _async_reconcile_once(self) -> None:
@@ -443,7 +482,9 @@ class RoomRuntime:
                 heater_active=False,
                 ac_target_temperature=None,
                 reason=actuation.reason or "logical_path_unavailable",
+                retry_after_seconds=min(5 * 2**self._command_failures, 60),
             )
+            self._command_failures = min(self._command_failures + 1, 4)
             self.physical_status = (
                 "outputs_neutral_after_failure"
                 if neutral.success
@@ -452,6 +493,7 @@ class RoomRuntime:
             if neutral.success:
                 confirmed_at = utcnow()
         else:
+            self._command_failures = 0
             self.physical_status = "outputs_confirmed"
             confirmed_at = utcnow()
         if confirmed_at is not None and not actuation.success:
@@ -560,8 +602,12 @@ class RoomRuntime:
             heater_state = self.hass.states.get(entity_id)
             if heater_state is None:
                 return False
-            heater_is_on = heater_state.state in (STATE_ON, "heat")
-            if heater_is_on != heater_expected_on:
+            heater_expected = (
+                ("heat" if entity_id.startswith("climate.") else STATE_ON)
+                if heater_expected_on
+                else STATE_OFF
+            )
+            if heater_state.state != heater_expected:
                 return False
         active = output is not OutputMode.OFF
         for optional_entity_id, expected in (
@@ -571,7 +617,9 @@ class RoomRuntime:
             state = (
                 self.hass.states.get(optional_entity_id) if optional_entity_id is not None else None
             )
-            if state is not None and (state.state == STATE_ON) != expected:
+            if optional_entity_id is not None and (
+                state is None or state.state != (STATE_ON if expected else STATE_OFF)
+            ):
                 return False
         return True
 
@@ -634,7 +682,8 @@ class RoomRuntime:
     def _async_retry(self, now: datetime) -> None:
         self._cancel_timer = None
         self.hass.async_create_task(
-            self.async_evaluate(), f"Virtual HVAC room retry {self.subentry_id}"
+            self.async_stop(cleanup=False) if self._stopping else self.async_evaluate(),
+            f"Virtual HVAC room retry {self.subentry_id}",
         )
 
     @callback
@@ -685,6 +734,7 @@ class ControllerRuntime:
         self._cancel_shared_timer: Callable[[], None] | None = None
         self._shared_lock = asyncio.Lock()
         self._shared_generation = 0
+        self._shared_command_failures = 0
         self._startup_complete = False
         self._stopping = False
 
@@ -729,8 +779,8 @@ class ControllerRuntime:
         self._listeners.clear()
         await self._timestamps.async_flush()
 
-    async def async_stop(self) -> bool:
-        """Refuse unload if any physically reachable output cannot confirm neutral."""
+    async def async_stop(self, *, cleanup: bool = True) -> bool:
+        """Disarm and neutralize; defer ownership removal until platforms unload."""
         self._stopping = True
         self._startup_complete = False
         self._shared_generation += 1
@@ -739,6 +789,12 @@ class ControllerRuntime:
             room._disarm()
         if not await self._async_neutralize_all():
             return False
+        if cleanup:
+            await self.async_cleanup()
+        return True
+
+    async def async_cleanup(self) -> None:
+        """Remove ownership only after confirmed neutral and successful platform unload."""
         if self._remove_shared_listener is not None:
             self._remove_shared_listener()
             self._remove_shared_listener = None
@@ -747,7 +803,6 @@ class ControllerRuntime:
             await room.async_stop(neutralize=False)
         self._listeners.clear()
         await self._timestamps.async_flush()
-        return True
 
     async def _async_neutralize_all(self) -> bool:
         shared_safe = await self._async_neutralize_shared("shutdown")
@@ -764,17 +819,21 @@ class ControllerRuntime:
             self.shared_physical_status = "not_configured"
             return True
         async with self._shared_lock:
+            self._cancel_shared_retry()
             state = self.hass.states.get(entity_id)
             if state is None or state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE):
                 self.shared_status = f"{phase}_neutralization_failed"
                 self.shared_physical_status = "physical_state_unknown"
+                self._schedule_shared_failure_retry()
                 self._notify()
                 return False
             if not await async_set_switch_confirmed(self.hass, entity_id, False):
                 self.shared_status = f"{phase}_neutralization_failed"
                 self.shared_physical_status = "physical_off_not_confirmed"
+                self._schedule_shared_failure_retry()
                 self._notify()
                 return False
+            self._shared_command_failures = 0
             self._timestamps.record(self._shared_timestamp_key)
             self.shared_status = f"{phase}_neutralized"
             self.shared_physical_status = "physical_off_confirmed"
@@ -864,7 +923,9 @@ class ControllerRuntime:
                     if not confirmed:
                         self.shared_status = "command_not_confirmed"
                         self.shared_physical_status = "physical_command_failed"
+                        self._schedule_shared_failure_retry()
                         break
+                    self._shared_command_failures = 0
                     self._timestamps.record(self._shared_timestamp_key)
                     self.shared_physical_status = "physical_command_confirmed"
                 else:
@@ -880,10 +941,20 @@ class ControllerRuntime:
         self._notify()
 
     @callback
+    def _schedule_shared_failure_retry(self) -> None:
+        self._cancel_shared_retry()
+        self._cancel_shared_timer = async_call_later(
+            self.hass, min(5 * 2**self._shared_command_failures, 60), self._async_shared_retry
+        )
+        self._shared_command_failures = min(self._shared_command_failures + 1, 4)
+
+    @callback
     def _async_shared_retry(self, now: datetime) -> None:
         self._cancel_shared_timer = None
         self.hass.async_create_task(
-            self.async_evaluate_shared_heat_source(),
+            self._async_neutralize_shared("shutdown")
+            if self._stopping
+            else self.async_evaluate_shared_heat_source(),
             f"Virtual HVAC shared heat retry {self.entry_id}",
         )
 

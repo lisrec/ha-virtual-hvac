@@ -28,10 +28,12 @@ from homeassistant.const import (
     STATE_ON,
     STATE_UNAVAILABLE,
     STATE_UNKNOWN,
+    UnitOfTemperature,
 )
 from homeassistant.core import Event, EventStateChangedData, HomeAssistant, State, split_entity_id
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.event import async_track_state_change_event
+from homeassistant.util.unit_conversion import TemperatureConverter
 
 from .control import ControlDecision, OutputMode
 from .models import RoomConfig
@@ -267,9 +269,67 @@ class ActuatorAdapter:
             ):
                 await self.async_neutralize(target_temperature)
                 return ActuationResult(False, "preset_output_not_confirmed")
+            if not self.outputs_match(decision, target_temperature):
+                return ActuationResult(False, "final_output_not_confirmed")
             return ActuationResult(True)
         except HomeAssistantError:
             return ActuationResult(False, "service_call_failed")
+
+    def outputs_match(self, decision: ControlDecision, target_temperature: float) -> bool:
+        """Validate the whole bank now, not historical per-command acknowledgements."""
+        output = decision.output_mode
+        ac_mode = {
+            OutputMode.COOL: HVACMode.COOL,
+            OutputMode.DRY: HVACMode.DRY,
+            OutputMode.FAN_ONLY: HVACMode.FAN_ONLY,
+            OutputMode.HEAT_ASSIST: HVACMode.HEAT,
+        }.get(output, HVACMode.OFF)
+        if output is OutputMode.HEAT and not decision.heater_active:
+            ac_mode = HVACMode.HEAT
+        expected = dict.fromkeys(self.config.ac_entity_ids, ac_mode.value)
+        for entity_id in self.config.heater_entity_ids:
+            expected[entity_id] = (
+                (
+                    HVACMode.HEAT.value
+                    if split_entity_id(entity_id)[0] == CLIMATE_DOMAIN
+                    else STATE_ON
+                )
+                if decision.heater_active
+                else STATE_OFF
+            )
+        active = output is not OutputMode.OFF
+        for optional_entity_id, enabled in (
+            (self.config.rapid_entity_id, active and decision.rapid),
+            (self.config.silent_entity_id, active and decision.silent),
+        ):
+            if optional_entity_id is not None:
+                expected[optional_entity_id] = STATE_ON if enabled else STATE_OFF
+        targets: dict[str, float] = {}
+        if ac_mode is not HVACMode.OFF and decision.ac_target_temperature is not None:
+            targets.update(dict.fromkeys(self.config.ac_entity_ids, decision.ac_target_temperature))
+        if decision.heater_active:
+            targets.update(
+                dict.fromkeys(
+                    (
+                        eid
+                        for eid in self.config.heater_entity_ids
+                        if split_entity_id(eid)[0] == CLIMATE_DOMAIN
+                    ),
+                    target_temperature + self.config.trv_target_offset,
+                )
+            )
+        for entity_id, mode in expected.items():
+            state = self.hass.states.get(entity_id)
+            if state is None or state.state != mode:
+                return False
+            if entity_id in targets and not _climate_temperature_acknowledged(
+                state.attributes.get(ATTR_TEMPERATURE),
+                _climate_temperature_candidates(
+                    state, self._output_temperature(targets[entity_id])
+                ),
+            ):
+                return False
+        return True
 
     def _heat_assist_modes_active(self) -> bool:
         """Return whether both confirmed heat-assist paths remain active."""
@@ -301,9 +361,11 @@ class ActuatorAdapter:
             results.append(
                 await async_set_switch_confirmed(self.hass, self.config.silent_entity_id, False)
             )
-        return ActuationResult(
-            all(results), None if all(results) else "neutralization_not_confirmed"
+        success = all(results) and all(
+            (state := self.hass.states.get(entity_id)) is not None and state.state == STATE_OFF
+            for entity_id in self.config.output_entity_ids()
         )
+        return ActuationResult(success, None if success else "neutralization_not_confirmed")
 
     async def async_inputs_authoritative(self) -> bool:
         """Return whether each configured physical output currently has a known state."""
@@ -434,11 +496,18 @@ class ActuatorAdapter:
             lambda current: current is not None and current.state == mode,
         )
 
+    def _output_temperature(self, celsius: float) -> float:
+        """HA climate states and service targets use the configured system unit."""
+        return TemperatureConverter.convert(
+            celsius, UnitOfTemperature.CELSIUS, self.hass.config.units.temperature_unit
+        )
+
     async def _async_set_climate_temperature(self, entity_id: str, temperature: float) -> bool:
-        """Set a climate target and accept its reported precision/rounding."""
+        """Convert the Celsius target before physical bounds, grid and ACK checks."""
         state = self.hass.states.get(entity_id)
         if state is None or state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
             return False
+        temperature = self._output_temperature(temperature)
         candidates = _climate_temperature_candidates(state, temperature)
         command_temperature = _climate_command_temperature(state, temperature)
         if not candidates or command_temperature is None:
@@ -452,6 +521,7 @@ class ActuatorAdapter:
             {ATTR_ENTITY_ID: entity_id, ATTR_TEMPERATURE: command_temperature},
             entity_id,
             lambda updated: updated is not None
+            and updated.state == state.state
             and _climate_temperature_acknowledged(
                 updated.attributes.get(ATTR_TEMPERATURE), candidates
             ),

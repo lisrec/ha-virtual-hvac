@@ -173,6 +173,26 @@ async def test_diagnostics_redact_identifiers_but_expose_safe_structure(hass) ->
 
 
 @pytest.mark.asyncio
+async def test_diagnostics_expose_final_bank_failure_without_private_data(hass) -> None:
+    entry, room_config, private_values = _private_entry()
+    subentry_id = next(iter(entry.subentries))
+    runtime = ControllerRuntime(
+        hass,
+        entry.entry_id,
+        config=ControllerConfig.from_mapping(dict(entry.data)),
+        rooms={subentry_id: room_config},
+    )
+    room = runtime.rooms[subentry_id]
+    room.decision = ControlDecision(
+        OutputMode.OFF, False, False, None, False, False, "final_output_not_confirmed"
+    )
+    entry.runtime_data = runtime
+    diagnostics = await async_get_config_entry_diagnostics(hass, entry)
+    assert diagnostics["rooms"][0]["runtime"]["status"] == "final_output_not_confirmed"
+    assert all(value not in repr(diagnostics) for value in private_values.values())
+
+
+@pytest.mark.asyncio
 async def test_diagnostics_replace_unrecognized_runtime_text(hass) -> None:
     entry, room_config, _ = _private_entry()
     subentry_id = next(iter(entry.subentries))

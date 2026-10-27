@@ -138,6 +138,8 @@ async def test_room_stop_refuses_cleanup_when_neutralization_fails(hass, monkeyp
     assert room._stopping
     assert room.physical_status == "shutdown_neutralization_failed"
     cleanup.assert_not_called()
+    assert room._cancel_timer is not None
+    room._cancel_retry_timer()
 
 
 @pytest.mark.asyncio
@@ -562,6 +564,8 @@ async def test_controller_shared_neutralization_handles_unknown_and_unconfirmed_
     assert runtime.shared_status == "shutdown_neutralization_failed"
     assert runtime.shared_physical_status == "physical_off_not_confirmed"
     assert listener.call_count == 2
+    assert runtime._cancel_shared_timer is not None
+    runtime._cancel_shared_retry()
 
 
 @pytest.mark.asyncio
@@ -717,6 +721,8 @@ async def test_shared_evaluation_reports_unconfirmed_command(hass, monkeypatch) 
 
     assert runtime.shared_status == "command_not_confirmed"
     assert runtime.shared_physical_status == "physical_command_failed"
+    assert runtime._cancel_shared_timer is not None
+    runtime._cancel_shared_retry()
 
 
 @pytest.mark.asyncio

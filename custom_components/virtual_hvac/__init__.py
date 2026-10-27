@@ -154,10 +154,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: VirtualHVACConfigEntry) 
 async def async_unload_entry(hass: HomeAssistant, entry: VirtualHVACConfigEntry) -> bool:
     """Neutralize first and refuse unload when physical OFF cannot be confirmed."""
     runtime = entry.runtime_data
-    if not await runtime.async_stop():
+    if not await runtime.async_stop(cleanup=False):
         return False
     if not await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         return False
+    await runtime.async_cleanup()
     entry.runtime_data = None  # type: ignore[assignment]
     return True
 

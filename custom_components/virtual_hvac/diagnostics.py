@@ -30,6 +30,7 @@ _SAFE_ROOM_STATUSES = frozenset(
         "explicit_cool",
         "explicit_dry",
         "explicit_fan_only",
+        "final_output_not_confirmed",
         "heat_demand",
         "heat_target_satisfied",
         "heater_start_not_confirmed",

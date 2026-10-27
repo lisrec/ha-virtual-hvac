@@ -15,7 +15,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
-from homeassistant.helpers.restore_state import RestoreEntity
+from homeassistant.helpers.restore_state import ExtraStoredData, RestoredExtraData, RestoreEntity
 
 from .control import OutputMode, Preset, VirtualMode
 from .entity import VirtualHVACRoomEntity
@@ -185,22 +185,43 @@ class VirtualRoomClimate(VirtualHVACRoomEntity, ClimateEntity, RestoreEntity):
             ),
         }
 
+    @property
+    @override
+    def extra_restore_state_data(self) -> ExtraStoredData:
+        """Persist intent even when HA strips attributes from unavailable states."""
+        return RestoredExtraData(
+            {
+                "mode": self.room.mode.value,
+                "target_celsius": self.room.target_temperature,
+                "preset": self.room.preset.value,
+            }
+        )
+
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
         last_state = await self.async_get_last_state()
+        extra = await self.async_get_last_extra_data()
+        intent = extra.as_dict() if extra is not None else {}
         mode = VirtualMode.OFF
         target = self.room.target_temperature
         preset = Preset.COMFORT
         if last_state is not None:
             try:
-                mode = _HA_TO_VIRTUAL[HVACMode(last_state.state)]
+                if "mode" in intent:
+                    mode = VirtualMode(intent["mode"])
+                else:
+                    mode = _HA_TO_VIRTUAL[HVACMode(last_state.state)]
             except (KeyError, ValueError):
                 mode = VirtualMode.OFF
-            restored_target = last_state.attributes.get(ATTR_TEMPERATURE)
+            restored_target = intent.get(
+                "target_celsius", last_state.attributes.get(ATTR_TEMPERATURE)
+            )
             if isinstance(restored_target, int | float):
                 target = float(restored_target)
             try:
-                preset = Preset(last_state.attributes.get("preset_mode", Preset.COMFORT))
+                preset = Preset(
+                    intent.get("preset", last_state.attributes.get("preset_mode", Preset.COMFORT))
+                )
             except ValueError:
                 preset = Preset.COMFORT
         await self.room.async_restore(mode, target, preset)

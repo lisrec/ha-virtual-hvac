@@ -147,7 +147,9 @@ Elapsed time comes from an integration-owned wall-clock timestamp recorded after
 
 ### Heat/cool reversal guard
 
-A transition from a prior heating path to cool or dry, or from a prior cooling path to heat, remains off with `mode_reversal_guard` until the configured interval has elapsed. Confirmed room output-path transitions are recorded in the same durable private wall-clock store. Missing, corrupt, or future values apply the full guard.
+A transition from a prior heating path to cool or dry, or from a prior cooling path to heat, remains off with `mode_reversal_guard` until the configured interval has elapsed **since the last confirmed room output-path transition**. Confirmed room output-path transitions are recorded in the same durable private wall-clock store. Missing, corrupt, or future values apply the full guard.
+
+This is an elapsed path-dwell guard, **not a guaranteed neutral dead-time after compressor shutdown**. If the previous path has already run longer than the guard, AC-only heat may transition directly to dry/cool. Do not rely on this setting for equipment that requires a post-OFF reversal interval; retain manufacturer protections and establish that requirement before commissioning. Adding a guaranteed post-OFF interval requires a separate explicit control-contract decision.
 
 ### Window close
 
@@ -155,13 +157,17 @@ Normal evaluation resumes as soon as explicit closed is reported. There is no se
 
 ## Actuation result and effective demand
 
-The adapter first requests the opposite path off and requires Home Assistant state acknowledgement, then requests the selected path with another bounded acknowledgement. If a required path is unavailable, unsupported, times out, or does not converge, runtime changes the effective decision to off, clears heat demand, records a known failure reason, and attempts acknowledged neutralization.
+The adapter first requests the opposite path off and requires Home Assistant state acknowledgement, then requests the selected path with another bounded acknowledgement. Target feedback must retain the commanded, available mode. After sequential writes, the entire bank's modes, required targets, and preset outputs are checked again before success; neutralization also rechecks every output OFF. If a required path is unavailable, unsupported, times out, or does not converge, runtime changes the effective decision to off, clears heat demand, records a known failure reason, and attempts acknowledged neutralization.
+
+Failed commands retry without requiring a changed temperature: delays are 5, 10, 20, 40, then at most 60 seconds until convergence, with one serialized writer per owner. Recovery from unavailable/unknown to a known output state reevaluates armed intent even if that state matches an emergency OFF. Disarmed shutdown and failed stale-generation neutralization retry **OFF only**, never automatically rearming. Each acknowledged stale-generation neutralization records effective OFF and fresh output/AC timestamps before the next decision, so a coalesced target/preset request cannot reuse a prior compressor start time to bypass minimum-OFF.
+
+Native TRV schedules and other competing target writers must be disabled during commissioning. Whole-bank target validation covers pending writes, not continuous arbitration with an external schedule. A same-mode target change after reconciliation may remain until the next genuine evaluation; identical temperature reports only refresh freshness. `outputs_confirmed` records the last reconciliation, not guaranteed ongoing ownership or mechanical flow.
 
 Reported state acknowledgement is stronger than service-call completion but still does not prove mechanical movement, valve travel, or safe hydraulic flow.
 
 ### Physical climate target precision
 
-The virtual room target remains unchanged, while each physical climate receives a target compatible with its reported `min_temp`, `max_temp`, and `target_temp_step` capabilities. A midpoint is resolved deterministically toward the lower step. Acknowledgement accepts the exact bounded target, either adjacent grid value, and whole-degree feedback from devices that do not expose their step. Non-finite, unavailable, or unrelated feedback still fails closed.
+The virtual room target remains unchanged in Celsius. The physical target (including the Celsius TRV offset, when applicable) is converted to Home Assistant's configured temperature unit **before** applying reported `min_temp`, `max_temp`, and `target_temp_step` capabilities, service calls, and acknowledgement checks. A midpoint is resolved deterministically toward the lower step. Acknowledgement accepts the exact bounded target, either adjacent grid value, and whole-degree feedback from devices that do not expose their step. Non-finite, unavailable, or unrelated feedback still fails closed.
 
 ## Shared heat-source arbitration
 
@@ -191,6 +197,6 @@ Common room status values include:
 - normal selection: `explicit_cool`, `explicit_dry`, `explicit_fan_only`, `heat_demand`, `auto_heat`, `auto_cool`, `auto_continue_heat`, `auto_continue_cool`;
 - satisfied or idle: `cool_target_satisfied`, `mode_off`, `heat_target_satisfied`, `auto_dead_band`;
 - startup, shutdown, or interlock: `startup_disarmed`, `startup_inputs_not_authoritative`, `startup_neutralization_failed`, `shutdown_neutralized`, `no_valid_temperature`, `invalid_target`, `window_open`, `window_open_delay_active`, `window_unavailable`, `ac_minimum_on`, `ac_minimum_off`, `mode_reversal_guard`;
-- output fault: `ac_heat_not_confirmed`, `ac_heat_assist_not_confirmed`, `ac_heat_unavailable`, `ac_stop_not_confirmed`, `ac_stop_or_start_not_confirmed`, `heater_start_not_confirmed`, `heater_stop_not_confirmed`, `neutralization_not_confirmed`, `preset_output_not_confirmed`, `stale_command_neutralization_failed`, `service_call_failed`.
+- output fault: `ac_heat_not_confirmed`, `ac_heat_assist_not_confirmed`, `ac_heat_unavailable`, `ac_stop_not_confirmed`, `ac_stop_or_start_not_confirmed`, `heater_start_not_confirmed`, `heater_stop_not_confirmed`, `final_output_not_confirmed`, `neutralization_not_confirmed`, `preset_output_not_confirmed`, `stale_command_neutralization_failed`, `service_call_failed`.
 
 Unknown arbitrary text is not included in downloadable diagnostics.
