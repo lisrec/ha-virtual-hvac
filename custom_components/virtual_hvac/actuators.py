@@ -89,7 +89,8 @@ async def _async_call_and_confirm(
     try:
         async with asyncio.timeout(COMMAND_CALL_TIMEOUT):
             await hass.services.async_call(domain, service, data, blocking=True)
-    except (HomeAssistantError, TimeoutError):
+    except (HomeAssistantError, TimeoutError, ValueError):
+        # Downstream integrations may reject their command schema with ValueError.
         return False
     return await _async_wait_for_state(hass, entity_id, predicate)
 

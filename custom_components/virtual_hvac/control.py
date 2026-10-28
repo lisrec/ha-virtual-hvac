@@ -178,17 +178,15 @@ class RoomController:
                 return self._protected("mode_reversal_guard", inputs)
             if protected := self._compressor_protection(inputs):
                 return protected
-            return ControlDecision(
-                OutputMode.DRY, False, False, None, rapid, silent, "explicit_dry"
-            )
+            return ControlDecision(OutputMode.DRY, False, False, None, False, False, "explicit_dry")
         if inputs.mode is VirtualMode.FAN_ONLY:
             return ControlDecision(
                 OutputMode.FAN_ONLY,
                 False,
                 False,
                 None,
-                rapid,
-                silent,
+                False,
+                False,
                 "explicit_fan_only",
             )
         if inputs.mode is VirtualMode.HEAT:
@@ -227,9 +225,9 @@ class RoomController:
         silent: bool,
         reason: str,
     ) -> ControlDecision:
-        """Select a primary-heater, assisted, or AC-only heating path."""
+        """Select heating; AC preset flags require an actual AC thermal path."""
         if self._config.shared_heat_request:
-            return ControlDecision(OutputMode.HEAT, True, False, None, rapid, silent, reason)
+            return ControlDecision(OutputMode.HEAT, True, False, None, False, False, reason)
         if not self._config.heater_entity_ids:
             if not inputs.ac_heating_supported:
                 return self._off("ac_heat_unavailable", rapid=False, silent=False)
@@ -257,8 +255,8 @@ class RoomController:
             True,
             True,
             inputs.target_temperature if output is OutputMode.HEAT_ASSIST else None,
-            rapid,
-            silent,
+            rapid if output is OutputMode.HEAT_ASSIST else False,
+            silent if output is OutputMode.HEAT_ASSIST else False,
             reason,
         )
 

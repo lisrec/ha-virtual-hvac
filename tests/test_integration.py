@@ -188,7 +188,8 @@ async def test_setup_retry_preserves_restored_heat_intent(hass) -> None:
     await room.async_set_mode(VirtualMode.HEAT)
     await hass.async_block_till_done()
     assert room.heat_demand
-    assert hass.states.get("switch.test_silent").state == STATE_ON
+    # SLEEP intent persists, but primary-only heat leaves the AC and its flags OFF.
+    assert hass.states.get("switch.test_silent").state == STATE_OFF
     assert await hass.config_entries.async_unload(entry.entry_id)
     for source in ("sensor.test_temperature_one", "sensor.test_temperature_two"):
         hass.states.async_set(source, "unavailable")
@@ -206,7 +207,7 @@ async def test_setup_retry_preserves_restored_heat_intent(hass) -> None:
         assert restored.preset is Preset.SLEEP
         assert restored.heat_demand
         assert hass.states.get("climate.test_heater").state == "heat"
-        assert hass.states.get("switch.test_silent").state == STATE_ON
+        assert hass.states.get("switch.test_silent").state == STATE_OFF
     finally:
         assert await hass.config_entries.async_unload(entry.entry_id)
 

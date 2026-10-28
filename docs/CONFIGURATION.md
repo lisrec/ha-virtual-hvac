@@ -57,8 +57,8 @@ No physical output may be reused by another room or by the controller relay. Rap
 | Air-conditioning climate output | No | Climate entity used for supported cool, dry, fan-only, AC-only heat, and heat-assist modes. |
 | Heater or TRV output | No | Heating climate entity, TRV, or switch. At least one AC or heater output is required. |
 | Window sensors | No | One or more binary sensors; any open sensor starts the per-room grace period before the selected open-window policy is applied. |
-| Rapid-mode switch | No | Switch enabled by boost while an HVAC path is active. |
-| Silent-mode switch | No | Switch enabled by sleep while an HVAC path is active. |
+| Rapid-mode switch | No | AC modifier enabled by boost during active AC heat/cool, including heat assist. |
+| Silent-mode switch | No | AC modifier enabled by sleep during active AC heat/cool. |
 
 ### Temperature sensors
 
@@ -101,10 +101,10 @@ The virtual target range is 5–35 degrees with a 0.5-degree step. New rooms sta
 ## Presets
 
 - **Comfort:** rapid and silent switches off.
-- **Boost:** rapid switch on while active; AC heat assist is enabled by default and can be disabled per room.
-- **Sleep:** silent switch on and rapid switch off while active.
+- **Boost:** rapid switch on during active AC heat/cool; AC heat assist is enabled by default and can be disabled per room.
+- **Sleep:** silent switch on during active AC heat/cool and rapid switch off.
 
-Preset switches are requested off whenever the selected HVAC output path is off.
+Preset switches are requested off for OFF, dry, fan-only (including window fallback), shared-CO-only heat, and primary-only heating without AC assist. Preset intent and primary-heater targets are unchanged. Unknown or rejected preset-switch OFF acknowledgements still block confirmed neutralization.
 
 ## Reconfiguration and removal
 

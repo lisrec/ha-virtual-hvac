@@ -314,7 +314,9 @@ async def test_room_rejects_unsupported_mode_and_out_of_range_target(hass) -> No
 
 @pytest.mark.asyncio
 async def test_fan_and_swing_notify_only_after_confirmed_commands(hass, monkeypatch) -> None:
+    set_authoritative_states(hass)
     room = make_room(hass)
+    room._ready = True
     listener = Mock()
     room.async_add_listener(listener)
     monkeypatch.setattr(room._actuators, "async_set_fan_mode", AsyncMock(side_effect=[False, True]))

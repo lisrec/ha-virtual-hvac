@@ -394,12 +394,32 @@ class RoomRuntime:
         await self.async_evaluate()
 
     async def async_set_fan_mode(self, fan_mode: str) -> None:
-        if await self._actuators.async_set_fan_mode(fan_mode):
-            self._notify()
+        """Drain accepted fan writes before OFF or shutdown can confirm neutral."""
+        async with self._lock:
+            if not self._ready or self._stopping:
+                return
+            confirmed = await self._actuators.async_set_fan_mode(fan_mode)
+            if confirmed and self._physical_outputs_match_decision():
+                self._notify()
+        # Output events are suppressed under the writer lock. Recheck even when
+        # the ancillary command failed, without recursively acquiring that lock.
+        if not self._physical_outputs_match_decision():
+            self.hass.async_create_task(
+                self.async_evaluate(), f"Virtual HVAC fan output drift {self.subentry_id}"
+            )
 
     async def async_set_swing_mode(self, swing_mode: str) -> None:
-        if await self._actuators.async_set_swing_mode(swing_mode):
-            self._notify()
+        """Keep swing writes under the same owner and lifecycle as reconciliation."""
+        async with self._lock:
+            if not self._ready or self._stopping:
+                return
+            confirmed = await self._actuators.async_set_swing_mode(swing_mode)
+            if confirmed and self._physical_outputs_match_decision():
+                self._notify()
+        if not self._physical_outputs_match_decision():
+            self.hass.async_create_task(
+                self.async_evaluate(), f"Virtual HVAC swing output drift {self.subentry_id}"
+            )
 
     async def async_evaluate(self) -> None:
         """Serialize, coalesce, and invalidate stale reconciliations."""

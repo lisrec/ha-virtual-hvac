@@ -129,8 +129,10 @@ Only modes supported by configured and currently reported physical outputs are e
 | Preset | Rapid switch | Silent switch | Other effect |
 |---|---:|---:|---|
 | Comfort | Off | Off | Normal operation. |
-| Boost | On while active | Off | Uses AC heat assist by default when supported; it can be disabled per room. |
-| Sleep | Off | On while active | No other vendor-specific changes. |
+| Boost | On during AC heat/cool | Off | Uses AC heat assist by default when supported; it can be disabled per room. |
+| Sleep | Off | On during AC heat/cool | No other vendor-specific changes. |
+
+Physical rapid/silent switches are AC thermal-path modifiers, not boiler or primary-heater commands. They remain off for shared-CO-only heat, primary-only heat without AC assist, dry, fan-only (including window fallback), and OFF. Boost/sleep intent, primary-heater targets and supported boost heat assist are retained. An open-window grace period retains the normal path and its applicable flags until the fallback takes effect. OFF acknowledgement still requires every configured output, including these switches, to report off; unknown or rejected flags are not ignored.
 
 ## Room protection timers
 
