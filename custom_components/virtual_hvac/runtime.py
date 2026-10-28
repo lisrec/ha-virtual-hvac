@@ -374,9 +374,19 @@ class RoomRuntime:
         await self.async_evaluate()
 
     async def async_set_target_temperature(self, temperature: float) -> None:
+        await self.async_set_temperature_intent(temperature)
+
+    async def async_set_temperature_intent(
+        self, temperature: float, mode: VirtualMode | None = None
+    ) -> None:
+        """Validate the complete command before publishing or evaluating its intent."""
         if not math.isfinite(temperature) or not 5.0 <= temperature <= 35.0:
             raise ValueError("Target temperature must be between 5 and 35")
+        if mode is not None and mode not in self.supported_virtual_modes():
+            raise ValueError(f"Unsupported HVAC mode: {mode}")
         self.target_temperature = temperature
+        if mode is not None:
+            self.mode = mode
         await self.async_evaluate()
 
     async def async_set_preset(self, preset: Preset) -> None:

@@ -235,9 +235,16 @@ class VirtualRoomClimate(VirtualHVACRoomEntity, ClimateEntity, RestoreEntity):
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
         temperature = kwargs.get(ATTR_TEMPERATURE)
-        if not isinstance(temperature, int | float):
+        if isinstance(temperature, bool) or not isinstance(temperature, int | float):
             raise ValueError("A numeric target temperature is required")
-        await self.room.async_set_target_temperature(float(temperature))
+        if "hvac_mode" not in kwargs:
+            await self.room.async_set_target_temperature(float(temperature))
+            return
+        try:
+            mode = _HA_TO_VIRTUAL[HVACMode(kwargs["hvac_mode"])]
+        except (KeyError, ValueError) as err:
+            raise ValueError(f"Unsupported HVAC mode: {kwargs['hvac_mode']}") from err
+        await self.room.async_set_temperature_intent(float(temperature), mode)
 
     async def async_set_preset_mode(self, preset_mode: str) -> None:
         await self.room.async_set_preset(Preset(preset_mode))
