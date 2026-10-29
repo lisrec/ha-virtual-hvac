@@ -271,7 +271,11 @@ class RoomRuntime:
                 and new is not None
                 and new.state not in (STATE_UNKNOWN, STATE_UNAVAILABLE)
             )
-            if self._lock.locked() or (not recovered and self._physical_outputs_match_decision()):
+            if self._lock.locked():
+                return
+            if not recovered and self._physical_outputs_match_decision():
+                # Late ancillary ACKs still change the facade, not the control decision.
+                self._notify()
                 return
         self.hass.async_create_task(
             self.async_evaluate(), f"Virtual HVAC room update {self.subentry_id}"
