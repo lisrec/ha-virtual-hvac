@@ -1,6 +1,6 @@
 homeassistant @ git+https://github.com/home-assistant/core.git@2026.8.2
 pytest-homeassistant-custom-component @ git+https://github.com/MatthewFlamm/pytest-homeassistant-custom-component.git@44c94f3c5d83506e7069959dfc95aaaa700879d8
-pytest==9.0.3
+pytest==9.1.1
 pytest-asyncio==1.4.0
 pytest-cov==7.1.0
 ruff==0.12.9
