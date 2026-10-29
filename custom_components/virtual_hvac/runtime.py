@@ -263,6 +263,17 @@ class RoomRuntime:
             return
         if not self._ready or self._stopping:
             return
+        if (
+            len(self.config.temperature_sensor_entity_ids) == 1
+            and event.data["entity_id"] in self.config.temperature_sensor_entity_ids
+            and self.decision.reason != "no_valid_temperature"
+            and self._temperature_sample_unchanged(
+                event.data.get("old_state"), event.data["new_state"]
+            )
+        ):
+            # Forced/attribute-only state_changed reports are freshness, not new intent.
+            self._schedule_freshness_timer()
+            return
         if event.data["entity_id"] in self.config.output_entity_ids():
             old = event.data["old_state"]
             new = event.data["new_state"]
@@ -279,6 +290,29 @@ class RoomRuntime:
                 return
         self.hass.async_create_task(
             self.async_evaluate(), f"Virtual HVAC room update {self.subentry_id}"
+        )
+
+    def _temperature_sample_unchanged(self, old: State | None, new: State | None) -> bool:
+        """Recognize only equal, valid, still-fresh samples in the same source unit."""
+        if old is None or new is None:
+            return False
+        unit = old.attributes.get("unit_of_measurement")
+        if unit != new.attributes.get("unit_of_measurement") or unit not in (
+            None,
+            *TemperatureConverter.VALID_UNITS,
+        ):
+            return False
+        try:
+            value = float(old.state)
+            if not math.isfinite(value) or value != float(new.state):
+                return False
+            if unit is not None:
+                value = TemperatureConverter.convert(value, unit, "°C")
+        except (TypeError, ValueError):
+            return False
+        max_age = self.config.temperature_sensor_max_age_seconds
+        return math.isfinite(value) and (
+            max_age is None or (utcnow() - old.last_reported).total_seconds() < max_age
         )
 
     def _valid_temperature_values(self) -> list[object]:
