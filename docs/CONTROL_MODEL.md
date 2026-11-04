@@ -21,7 +21,7 @@ It returns exactly one output path:
 - dry;
 - fan only.
 
-Heating and cooling paths are mutually exclusive. Heat assist is still a heating path: it can use the primary heater and AC heating together only when explicitly enabled.
+Heating and cooling paths are mutually exclusive. Heat assist is still a heating path: boost adds supported AC heating to local primary heat or an explicit shared-CO request when `boost_ac_heat_assist` is enabled (the default); an explicit false is authoritative.
 
 ## Temperature aggregation
 
@@ -75,7 +75,11 @@ T < S + H_off
 
 At or above the stop threshold, the room selects off with `heat_target_satisfied`. Once off is acknowledged, a later drop inside the dead band does not restart heating. Active heating/cooling latches follow acknowledged output paths (including AC-only heat); the retained last-active path is used only for reversal protection. The automatic mode uses a strict start boundary; see below.
 
-Heating requests the primary heater when configured. Without a primary heater, AC becomes the heating output only when every configured AC reports heat support; this AC-only path does not publish shared heat-source demand. A heating climate output receives target plus TRV offset. Boost selects heat assist by default when enabled and every configured AC reports heat support.
+Heating requests the primary heater when configured. Without a primary heater or an explicit shared-CO request, AC becomes the heating output only when every configured AC reports heat support; this AC-only path does not publish shared heat-source demand. A heating climate output receives target plus TRV offset. Boost selects heat assist by default when enabled and every configured AC reports heat support.
+
+### Shared-CO boost assist
+
+This applies to shared-CO rooms as well as local heaters, in HEAT and the heating branch of AUTO. Shared assist uses `heat_assist`, publishes shared demand only after room-output acknowledgement, and keeps `heater_active` false: it does not invent a local valve or boiler ACK. The AC receives the unchanged room target, not a higher boost target. Comfort and sleep remain CO-only in shared-CO rooms; disabled, absent or unsupported assist also falls back to CO-only. Configured missing/unknown/unavailable outputs remain fail-closed, not permission to ignore their OFF acknowledgement. Hysteresis, window interlocks, the 300 s default temperature freshness and final whole-bank ACK checks are unchanged. Routine assist reevaluation and target updates do not cycle AC through OFF. Target satisfaction, window blocking, stale input, explicit OFF and unload withdraw both assist and this room's shared demand. They cannot physically stop an always-open floor while another room still requests shared heat.
 
 ## Cooling hysteresis
 
@@ -116,7 +120,7 @@ A heat/cool reversal and a cooling start may be delayed by the protection rules 
 | Virtual mode | Effective behavior |
 |---|---|
 | Off | AC off, heater off, preset switches off, no heat demand. |
-| Heat | Hysteresis-controlled primary heating, or AC heating when no primary heater is configured; boost heat assist is enabled by default. |
+| Heat | Hysteresis-controlled local or explicitly configured shared-CO heating, otherwise AC-only heat; supported boost AC heat assist is enabled by default for either CO path. |
 | Cool | AC cool with the virtual target after protection timers. |
 | Dry | AC dry after protection timers; target is not forced. |
 | Fan only | Heater off and AC fan-only; target is not forced and the compressor is treated as inactive. |

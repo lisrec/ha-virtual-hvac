@@ -41,7 +41,8 @@ async def test_shared_heat_safety_cooling_recovery_and_unload(hass, freezer):
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
-    room = entry.runtime_data.rooms[subentry.subentry_id]
+    controller = entry.runtime_data
+    room = controller.rooms[subentry.subentry_id]
     try:
         await room.async_set_target_temperature(24)
         await room.async_set_mode(VirtualMode.HEAT)
@@ -49,16 +50,20 @@ async def test_shared_heat_safety_cooling_recovery_and_unload(hass, freezer):
         await hass.async_block_till_done()
         assert room.heat_demand
         assert not room.decision.heater_active
-        assert room.decision.output_mode is OutputMode.HEAT
-        assert hass.states.get("climate.test_ac").state == "off"
+        assert room.decision.output_mode is OutputMode.HEAT_ASSIST
+        assert room.decision.ac_target_temperature == 24
+        assert hass.states.get("climate.test_ac").state == "heat"
+        assert hass.states.get("climate.test_ac").attributes["temperature"] == 24
         for state in ("on", "unknown", "unavailable"):
             hass.states.async_set("binary_sensor.shared_window", state)
             await hass.async_block_till_done()
             assert not room.heat_demand
             assert hass.states.get(aggregate_id(hass, entry)).state == "off"
+            assert hass.states.get("climate.test_ac").state == "off"
             hass.states.async_set("binary_sensor.shared_window", "off")
             await hass.async_block_till_done()
             assert room.heat_demand
+            assert hass.states.get("climate.test_ac").state == "heat"
         freezer.tick(timedelta(seconds=301))
         async_fire_time_changed(hass, utcnow())
         await hass.async_block_till_done()
@@ -72,10 +77,27 @@ async def test_shared_heat_safety_cooling_recovery_and_unload(hass, freezer):
         await room.async_set_mode(VirtualMode.COOL)
         await hass.async_block_till_done()
         assert not room.heat_demand
+        # This migrated entry enables the existing 300 s cooling-OFF guard.
+        # BOOST now really runs the compressor, so preserve (not bypass) that guard.
+        assert room.status == "ac_minimum_off"
+        assert hass.states.get("climate.test_ac").state == "off"
+        freezer.tick(timedelta(seconds=299))
+        hass.states.async_set("sensor.test_temperature_two", "20", {"unit_of_measurement": "°C"})
+        async_fire_time_changed(hass, utcnow())
+        await hass.async_block_till_done()
+        assert hass.states.get("climate.test_ac").state == "off"
+        freezer.tick(timedelta(seconds=2))
+        async_fire_time_changed(hass, utcnow())
+        await hass.async_block_till_done()
         assert hass.states.get("climate.test_ac").state == "cool"
+        await room.async_set_temperature_intent(24, VirtualMode.HEAT)
+        await hass.async_block_till_done()
+        assert room.heat_demand
+        assert hass.states.get("climate.test_ac").state == "heat"
     finally:
         assert await hass.config_entries.async_unload(entry.entry_id)
     assert not room.heat_demand
+    assert not controller.aggregate_heat_demand
     assert hass.states.get("climate.test_ac").state == "off"
 
 

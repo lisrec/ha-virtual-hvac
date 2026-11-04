@@ -47,7 +47,7 @@ Home Assistant associates room entities and room devices with their owning confi
 
 ### Side-effect adapter
 
-`ActuatorAdapter` converts a decision to bounded Home Assistant service calls and requires reported state acknowledgement. It avoids calls when reported state already matches the request. For a cooling or AC-only heating path, it confirms the primary heater off before requesting the AC mode. Primary heating first confirms AC off and then enables the heater; boost heat assist subsequently requests AC heat. Any failed AC heating request triggers fail-closed neutralization and is never reported as successful.
+`ActuatorAdapter` converts a decision to bounded Home Assistant service calls and requires reported state acknowledgement. It avoids calls when reported state already matches the request. For a cooling or AC-only heating path, it confirms the primary heater off before requesting the AC mode. Primary heating first confirms AC off and then enables the heater; boost heat assist subsequently requests AC heat. For an explicit shared-CO room, boost may request the same AC assist without a local-heater command or fabricated boiler acknowledgement; room demand is committed only after all configured room outputs confirm. Confirmed assist is idempotent: reevaluation does not stop and restart the AC. Shared comfort/sleep remain CO-only. Any failed AC heating request triggers fail-closed neutralization and is never reported as successful.
 
 A reported Home Assistant state acknowledgement does not prove physical movement. Deployment must provide independent mechanical acknowledgement or physical protection where required.
 
@@ -110,7 +110,7 @@ The shared output must be a heat-demand input only. It must never interrupt boil
 
 ## TRV and hydraulic readiness
 
-A room publishes heat demand only after heating mode and target are acknowledged in Home Assistant. The integration still does not confirm valve travel, valve position, end-switch state, or minimum system flow. Consequently, a shared source must not depend solely on a TRV state acknowledgement unless the installation separately guarantees readiness and safe circulation.
+A room with local heaters publishes heat demand only after their heating mode and target are acknowledged in Home Assistant. An explicit shared-CO room has no local valve ACK: only its configured room outputs (AC off for CO-only, AC heat at the normal target for boost assist, plus preset switches) must converge before its demand is published. This is not a boiler acknowledgement. The integration still does not confirm valve travel, valve position, end-switch state, or minimum system flow. Consequently, a shared source must not depend solely on a TRV state acknowledgement unless the installation separately guarantees readiness and safe circulation.
 
 Use a manufacturer-approved bypass, a permanently available circuit, a proven valve-ready interlock, or another professionally designed solution appropriate to the system.
 

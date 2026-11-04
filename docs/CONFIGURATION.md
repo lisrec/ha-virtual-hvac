@@ -55,7 +55,8 @@ No physical output may be reused by another room or by the controller relay. Rap
 | Room name | Yes | Display name for the subentry and room device. |
 | Temperature sensors | Yes | One or more sensors with temperature device class or a supported temperature unit. |
 | Air-conditioning climate output | No | Climate entity used for supported cool, dry, fan-only, AC-only heat, and heat-assist modes. |
-| Heater or TRV output | No | Heating climate entity, TRV, or switch. At least one AC or heater output is required. |
+| Heater or TRV output | No | Heating climate entity, TRV, or switch. At least one AC, local heater, or explicit shared heat request is required. |
+| Request shared heating without a local valve | No | Default off. For an always-open floor; leave local heaters empty. Comfort/sleep use CO only; boost adds supported AC heat when assist is enabled. No local valve or boiler ACK is claimed. |
 | Window sensors | No | One or more binary sensors; any open sensor starts the per-room grace period before the selected open-window policy is applied. |
 | Rapid-mode switch | No | AC modifier enabled by boost during active AC heat/cool, including heat assist. |
 | Silent-mode switch | No | AC modifier enabled by sleep during active AC heat/cool. |
@@ -66,7 +67,7 @@ At setup, every selected sensor must exist and report either a temperature devic
 
 ### AC output
 
-The virtual climate entity exposes only AC modes currently reported by every selected physical climate entity. When no primary heater is selected and every AC reports heat support, AC becomes the room's heating output and the virtual heat mode is exposed. Automatic mode is available when heating from either a primary heater or AC and AC cooling are both available.
+The virtual climate entity exposes only AC modes currently reported by every selected physical climate entity. When neither a primary heater nor an explicit shared heat request is selected and every AC reports heat support, AC becomes the room's heating output and the virtual heat mode is exposed without shared CO demand. Automatic mode is available when heating from a local heater, shared CO request or AC and AC cooling are both available. In shared-CO rooms, boost assist uses the normal target and the same hysteresis and safety interlocks; an explicit disabled assist or unsupported/absent AC leaves CO-only heating. A configured missing or unknown AC still blocks its required OFF acknowledgement.
 
 Verify that the AC reports off and each intended mode, and accepts target temperature where required. Dry and fan-only do not force a target.
 
@@ -93,7 +94,7 @@ Select every window sensor that belongs to the room. Any explicit open state sta
 | Minimum cooling off time | 300 seconds | 0–86400 seconds | Delay cooling or dry startup after the AC reports off. |
 | Heat/cool reversal guard | 300 seconds | 0–86400 seconds | Delay a transition between heating and cooling paths. |
 | TRV target offset | 1.0 degrees | 0–5.0 | Added to the virtual target sent to a heating climate entity. |
-| Allow AC heat assist in boost | On | Boolean | Allows boost to request AC heat alongside the primary heater when every selected AC reports heat support. |
+| Allow AC heat assist in boost | On | Boolean | Allows boost to request AC heat at the normal target alongside local primary heating or a shared-CO request when every selected AC reports heat support. Explicit false remains authoritative. |
 | Temperature reading maximum age | 300 seconds | 1–604800 seconds | Excludes readings older than this interval. |
 
 The virtual target range is 5–35 degrees with a 0.5-degree step. New rooms start at 22.0 degrees; restored rooms keep their last target.

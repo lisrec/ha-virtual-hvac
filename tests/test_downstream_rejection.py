@@ -139,17 +139,20 @@ async def test_failed_fan_transition_drops_previous_shared_heat_demand(
     await room.async_set_preset(Preset.BOOST)
     await room.async_set_mode(VirtualMode.HEAT)
     await hass.async_block_till_done()
-    assert room.decision.output_mode is OutputMode.HEAT
+    assert room.decision.output_mode is OutputMode.HEAT_ASSIST
+    assert not room.decision.heater_active
     assert room.heat_demand and controller.aggregate_heat_demand
-    assert hass.states.get("switch.rapid").state == "off"
+    assert hass.states.get("climate.ac").state == "heat"
+    assert hass.states.get("climate.ac").attributes["temperature"] == 24
+    assert hass.states.get("switch.rapid").state == "on"
     reject = True
     rejected_prior_heat = []
 
     async def climate(call):
         old = hass.states.get("climate.ac")
         if call.data["hvac_mode"] == "fan_only" and reject:
-            rejected_prior_heat.append(room.decision.output_mode is OutputMode.HEAT)
-            # Model a stale downstream flag separately from the newly restricted preset policy.
+            rejected_prior_heat.append(room.decision.output_mode is OutputMode.HEAT_ASSIST)
+            # The preceding active assist flag still needs a confirmed OFF.
             hass.states.async_set("switch.rapid", "on")
             raise ValueError("Downstream FAN command has invalid parameters")
         hass.states.async_set("climate.ac", call.data["hvac_mode"], old.attributes)
@@ -162,7 +165,7 @@ async def test_failed_fan_transition_drops_previous_shared_heat_demand(
     hass.services.async_register("climate", "set_hvac_mode", climate)
     hass.services.async_register("switch", "turn_off", off)
     try:
-        # The next real evaluate observes FAN, fresh 22.4 C and the old HEAT decision.
+        # The next real evaluate observes FAN, fresh 22.4 C and the old HEAT_ASSIST decision.
         await room.async_set_temperature_intent(22, VirtualMode.FAN_ONLY)
         await hass.async_block_till_done()
         assert rejected_prior_heat == [True]

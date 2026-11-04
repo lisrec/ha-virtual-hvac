@@ -226,9 +226,7 @@ class RoomController:
         reason: str,
     ) -> ControlDecision:
         """Select heating; AC preset flags require an actual AC thermal path."""
-        if self._config.shared_heat_request:
-            return ControlDecision(OutputMode.HEAT, True, False, None, False, False, reason)
-        if not self._config.heater_entity_ids:
+        if not self._config.heater_entity_ids and not self._config.shared_heat_request:
             if not inputs.ac_heating_supported:
                 return self._off("ac_heat_unavailable", rapid=False, silent=False)
             return ControlDecision(
@@ -253,7 +251,7 @@ class RoomController:
         return ControlDecision(
             output,
             True,
-            True,
+            bool(self._config.heater_entity_ids),
             inputs.target_temperature if output is OutputMode.HEAT_ASSIST else None,
             rapid if output is OutputMode.HEAT_ASSIST else False,
             silent if output is OutputMode.HEAT_ASSIST else False,

@@ -335,8 +335,10 @@ class ActuatorAdapter:
         return True
 
     def _heat_assist_modes_active(self) -> bool:
-        """Return whether both confirmed heat-assist paths remain active."""
-        if not self.config.ac_entity_ids or not self.config.heater_entity_ids:
+        """Require active AC and any local heaters, not a fictitious shared-source ACK."""
+        if not self.config.ac_entity_ids or not (
+            self.config.heater_entity_ids or self.config.shared_heat_request
+        ):
             return False
         if any(
             (state := self.hass.states.get(entity_id)) is None or state.state != HVACMode.HEAT
