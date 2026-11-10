@@ -738,7 +738,7 @@ class RoomRuntime:
             self._cancel_freshness_timer()
             self._cancel_freshness_timer = None
         max_age = self.config.temperature_sensor_max_age_seconds
-        if max_age is None or not self._ready or self._stopping:
+        if max_age is None or not (self._ready or self._recovering_superseded) or self._stopping:
             return
         now = utcnow()
         remaining = [
