@@ -89,6 +89,7 @@ class RoomRuntime:
         self._generation = 0
         self._ready = False
         self._stopping = False
+        self._recovering_superseded = False
         self._actuating = False
         self._command_failures = 0
 
@@ -153,6 +154,7 @@ class RoomRuntime:
     def _disarm(self) -> None:
         """Invalidate pending work before any shutdown awaits."""
         self._stopping = True
+        self._recovering_superseded = False
         self._ready = False
         self._generation += 1
         self._cancel_retry_timer()
@@ -477,7 +479,11 @@ class RoomRuntime:
                 finally:
                     self._actuating = False
                 if not stale_neutral.success:
-                    self._disarm()
+                    # Supersession is not owner shutdown. Suspend actuation until
+                    # a retry confirms the entire bank neutral and inputs fresh.
+                    self._ready = False
+                    self._recovering_superseded = not self._stopping
+                    self._cancel_retry_timer()
                     self._cancel_timer = async_call_later(
                         self.hass, min(5 * 2**self._command_failures, 60), self._async_retry
                     )
@@ -488,6 +494,7 @@ class RoomRuntime:
                         output_mode=OutputMode.OFF,
                         heat_demand=False,
                         heater_active=False,
+                        ac_target_temperature=None,
                         reason="stale_command_neutralization_failed",
                     )
                     break
@@ -746,13 +753,56 @@ class RoomRuntime:
                 self.async_evaluate(), f"Virtual HVAC source expiry {self.subentry_id}"
             )
 
+    async def _async_recover_superseded(self) -> None:
+        """Retry the safety barrier, never reviving an explicitly stopped owner."""
+        async with self._lock:
+            if self._stopping or not self._recovering_superseded:
+                return
+            self._cancel_retry_timer()
+            self._actuating = True
+            try:
+                neutral = await self._actuators.async_neutralize(self.target_temperature)
+            finally:
+                self._actuating = False
+            authoritative = neutral.success and await self._inputs_authoritative()
+            # Shutdown can invalidate this work during either awaited barrier.
+            if self._stopping or not self._recovering_superseded:
+                return
+            if not authoritative:
+                self.physical_status = (
+                    "outputs_neutral" if neutral.success else "stale_command_neutralization_failed"
+                )
+                self._cancel_timer = async_call_later(
+                    self.hass, min(5 * 2**self._command_failures, 60), self._async_retry
+                )
+                self._command_failures = min(self._command_failures + 1, 4)
+                self._publish()
+                return
+            confirmed_at = utcnow()
+            self._timestamps.record(self._output_timestamp_key, confirmed_at)
+            if self.config.ac_entity_ids:
+                self._timestamps.record(self._ac_timestamp_key, confirmed_at)
+            self._memory = replace(self._memory, heating_active=False, cooling_active=False)
+            self._command_failures = 0
+            self._recovering_superseded = False
+            self._ready = True
+            self.physical_status = "outputs_neutral"
+        # Freshly decide from latest intent; normal protection and ACK fences apply.
+        await self.async_evaluate()
+
     @callback
     def _async_retry(self, now: datetime) -> None:
         self._cancel_timer = None
-        self.hass.async_create_task(
-            self.async_stop(cleanup=False) if self._stopping else self.async_evaluate(),
-            f"Virtual HVAC room retry {self.subentry_id}",
+        retry = (
+            self.async_stop(cleanup=False)
+            if self._stopping
+            else (
+                self._async_recover_superseded()
+                if self._recovering_superseded
+                else self.async_evaluate()
+            )
         )
+        self.hass.async_create_task(retry, f"Virtual HVAC room retry {self.subentry_id}")
 
     @callback
     def _cancel_retry_timer(self) -> None:

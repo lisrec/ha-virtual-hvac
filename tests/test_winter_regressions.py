@@ -172,7 +172,7 @@ async def test_command_retry_backoff_is_capped_without_busy_loop(hass, freezer, 
 
 
 @pytest.mark.asyncio
-async def test_stale_neutralization_failure_retries_without_rearming(hass, freezer):
+async def test_stale_neutralization_failure_retries_and_recovers_latest_intent(hass, freezer):
     register_devices(hass)
     set_climate(hass, "climate.trv", target=10)
     room = await start_room(
@@ -216,13 +216,15 @@ async def test_stale_neutralization_failure_retries_without_rearming(hass, freez
         freezer.tick(timedelta(seconds=6))
         async_fire_time_changed(hass, utcnow())
         await hass.async_block_till_done()
-        assert hass.states.get("climate.trv").state == "off"
+        assert hass.states.get("climate.trv").state == "heat"
         assert off_attempts == 2
+        assert room._ready and not room._stopping
+        assert room.preset is Preset.SLEEP
         hass.states.async_set("sensor.winter", "19")
         await hass.async_block_till_done()
-        assert not room._ready
-        assert not room.heat_demand
-        assert hass.states.get("climate.trv").state == "off"
+        assert room._ready
+        assert room.heat_demand
+        assert hass.states.get("climate.trv").state == "heat"
     finally:
         release.set()
         await room.async_stop()
