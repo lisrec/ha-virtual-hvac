@@ -348,6 +348,11 @@ class RoomRuntime:
         return self.current_temperature is not None and self._ready
 
     @property
+    def command_available(self) -> bool:
+        """Keep the intent facade reachable during recovery, never arm actuation."""
+        return not self._stopping and (self.available or self._recovering_superseded)
+
+    @property
     def heat_demand(self) -> bool:
         """Logical demand is fail-closed independently of physical reachability."""
         return self._ready and self.current_temperature is not None and self.decision.heat_demand
@@ -467,6 +472,8 @@ class RoomRuntime:
         requested_generation = self._generation
         async with self._lock:
             if requested_generation < self._generation or not self._ready:
+                # Suspended commands still publish their latest intent and fresh inputs.
+                self._notify()
                 return
             while self._ready and not self._stopping:
                 applying_generation = self._generation
@@ -752,6 +759,9 @@ class RoomRuntime:
             self.hass.async_create_task(
                 self.async_evaluate(), f"Virtual HVAC source expiry {self.subentry_id}"
             )
+        elif self._recovering_superseded and not self._stopping:
+            # The intent-only facade must not retain a now-stale temperature.
+            self._notify()
 
     async def _async_recover_superseded(self) -> None:
         """Retry the safety barrier, never reviving an explicitly stopped owner."""

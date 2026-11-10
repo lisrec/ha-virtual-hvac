@@ -65,6 +65,7 @@ def fake_room(output: OutputMode, *, status: str = "test") -> SimpleNamespace:
         subentry_id="room-id",
         config=config,
         available=True,
+        command_available=True,
         current_temperature=21.0,
         target_temperature=22.0,
         mode=VirtualMode.OFF,

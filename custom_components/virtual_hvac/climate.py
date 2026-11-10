@@ -61,7 +61,7 @@ class VirtualRoomClimate(VirtualHVACRoomEntity, ClimateEntity, RestoreEntity):
     @property
     @override
     def available(self) -> bool:
-        return self.room.available
+        return self.room.command_available
 
     @property
     @override
@@ -176,6 +176,7 @@ class VirtualRoomClimate(VirtualHVACRoomEntity, ClimateEntity, RestoreEntity):
     def extra_state_attributes(self) -> dict[str, Any]:
         return {
             "controller_status": self.room.status,
+            "recovering": self.room.command_available and not self.room.available,
             "physical_output_status": self.room.physical_status,
             "valid_temperature_sensor_count": sum(
                 1

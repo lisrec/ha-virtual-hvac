@@ -99,7 +99,9 @@ async def test_target_steps_during_boost_ack_recover_after_late_trv_off(hass, mo
         # Earliest failure, before a shutdown retry can overwrite its reason.
         assert room.status == "stale_command_neutralization_failed"
         assert not room.available
-        assert hass.states.get(facade_id).state == "unavailable"
+        assert hass.states.get(facade_id).state == "heat"
+        assert hass.states.get(facade_id).attributes["hvac_action"] == "off"
+        assert hass.states.get(facade_id).attributes["recovering"] is True
         assert not room.heat_demand
         assert room._cancel_timer is not None
         await asyncio.sleep(0.09)
