@@ -310,7 +310,7 @@ class RoomRuntime:
                 return False
             if unit is not None:
                 value = TemperatureConverter.convert(value, unit, "°C")
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return False
         max_age = self.config.temperature_sensor_max_age_seconds
         return math.isfinite(value) and (
@@ -333,7 +333,7 @@ class RoomRuntime:
                 value = float(state.state)
                 if source_unit is not None:
                     value = TemperatureConverter.convert(value, source_unit, "°C")
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 continue
             values.append(value)
         return values

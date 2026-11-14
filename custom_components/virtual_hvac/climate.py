@@ -212,7 +212,7 @@ class VirtualRoomClimate(VirtualHVACRoomEntity, ClimateEntity, RestoreEntity):
                     mode = VirtualMode(intent["mode"])
                 else:
                     mode = _HA_TO_VIRTUAL[HVACMode(last_state.state)]
-            except (KeyError, ValueError):
+            except KeyError, ValueError:
                 mode = VirtualMode.OFF
             restored_target = intent.get(
                 "target_celsius", last_state.attributes.get(ATTR_TEMPERATURE)

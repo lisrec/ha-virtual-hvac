@@ -15,7 +15,7 @@ def average_valid_temperatures(values: Iterable[object]) -> float | None:
             continue
         try:
             number = float(cast(str | Buffer | SupportsFloat | SupportsIndex, value))
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             continue
         if math.isfinite(number):
             valid.append(number)

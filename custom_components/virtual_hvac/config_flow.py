@@ -245,7 +245,7 @@ class VirtualHVACConfigFlow(ConfigFlow, domain=DOMAIN):
             clean = _clean_optional_values(user_input)
             try:
                 config = ControllerConfig.from_mapping(clean)
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 errors["base"] = "invalid_controller_config"
             else:
                 await self.async_set_unique_id(DOMAIN)
@@ -265,7 +265,7 @@ class VirtualHVACConfigFlow(ConfigFlow, domain=DOMAIN):
             clean = _clean_optional_values(user_input)
             try:
                 config = ControllerConfig.from_mapping(clean)
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 errors["base"] = "invalid_controller_config"
             else:
                 try:
@@ -275,7 +275,7 @@ class VirtualHVACConfigFlow(ConfigFlow, domain=DOMAIN):
                         if subentry.subentry_type == SUBENTRY_ROOM
                     }
                     validate_output_ownership(config, rooms)
-                except (KeyError, TypeError, ValueError):
+                except KeyError, TypeError, ValueError:
                     errors["base"] = "actuator_already_assigned"
                 else:
                     return self.async_update_and_abort(
@@ -312,7 +312,7 @@ class RoomSubentryFlow(ConfigSubentryFlow):
             clean = _clean_optional_values(user_input)
             try:
                 room = RoomConfig.from_mapping(clean)
-            except (KeyError, TypeError, ValueError):
+            except KeyError, TypeError, ValueError:
                 errors["base"] = "invalid_room_config"
             else:
                 if not self._temperature_sensors_valid(room.temperature_sensor_entity_ids):
@@ -372,7 +372,7 @@ class RoomSubentryFlow(ConfigSubentryFlow):
                 continue
             try:
                 existing = RoomConfig.from_mapping(dict(subentry.data))
-            except (KeyError, TypeError, ValueError):
+            except KeyError, TypeError, ValueError:
                 continue
             if requested & self._assigned_actuators(existing):
                 return True
