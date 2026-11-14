@@ -165,7 +165,7 @@ async def async_get_config_entry_diagnostics(
             continue
         try:
             config = RoomConfig.from_mapping(dict(subentry.data))
-        except (KeyError, TypeError, ValueError):
+        except KeyError, TypeError, ValueError:
             rooms.append({"configuration_valid": False})
             continue
         rooms.append(_room_diagnostics(config, runtime.rooms.get(subentry_id)))

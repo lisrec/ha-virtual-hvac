@@ -89,7 +89,7 @@ async def _async_call_and_confirm(
     try:
         async with asyncio.timeout(COMMAND_CALL_TIMEOUT):
             await hass.services.async_call(domain, service, data, blocking=True)
-    except (HomeAssistantError, TimeoutError, ValueError):
+    except HomeAssistantError, TimeoutError, ValueError:
         # Downstream integrations may reject their command schema with ValueError.
         return False
     return await _async_wait_for_state(hass, entity_id, predicate)
@@ -101,7 +101,7 @@ def _as_finite_float(value: object) -> float | None:
         return None
     try:
         number = float(value)
-    except (OverflowError, TypeError, ValueError):
+    except OverflowError, TypeError, ValueError:
         return None
     return number if isfinite(number) else None
 
@@ -402,8 +402,9 @@ class ActuatorAdapter:
                 "set_fan_mode",
                 {ATTR_ENTITY_ID: entity_id, "fan_mode": fan_mode},
                 entity_id,
-                lambda current: current is not None
-                and current.attributes.get("fan_mode") == fan_mode,
+                lambda current: (
+                    current is not None and current.attributes.get("fan_mode") == fan_mode
+                ),
             ):
                 return False
         return True
@@ -430,8 +431,9 @@ class ActuatorAdapter:
                 "set_swing_mode",
                 {ATTR_ENTITY_ID: entity_id, "swing_mode": swing_mode},
                 entity_id,
-                lambda current: current is not None
-                and current.attributes.get("swing_mode") == swing_mode,
+                lambda current: (
+                    current is not None and current.attributes.get("swing_mode") == swing_mode
+                ),
             ):
                 return False
         return True
@@ -525,10 +527,12 @@ class ActuatorAdapter:
             SERVICE_SET_TEMPERATURE,
             {ATTR_ENTITY_ID: entity_id, ATTR_TEMPERATURE: command_temperature},
             entity_id,
-            lambda updated: updated is not None
-            and updated.state == state.state
-            and _climate_temperature_acknowledged(
-                updated.attributes.get(ATTR_TEMPERATURE), candidates
+            lambda updated: (
+                updated is not None
+                and updated.state == state.state
+                and _climate_temperature_acknowledged(
+                    updated.attributes.get(ATTR_TEMPERATURE), candidates
+                )
             ),
         )
 

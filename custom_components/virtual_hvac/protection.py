@@ -33,7 +33,7 @@ class ProtectionTimestamps:
             return
         try:
             loaded = await self._store.async_load()
-        except (OSError, ValueError, TypeError):
+        except OSError, ValueError, TypeError:
             loaded = None
         transitions = loaded.get("transitions") if isinstance(loaded, dict) else None
         self.replace_raw(transitions if isinstance(transitions, dict) else {})
@@ -51,7 +51,7 @@ class ProtectionTimestamps:
         try:
             parsed = as_utc(parsed)
             seconds = (current - parsed).total_seconds()
-        except (TypeError, ValueError, OverflowError):
+        except TypeError, ValueError, OverflowError:
             return 0.0
         return seconds if seconds >= 0 else 0.0
 
