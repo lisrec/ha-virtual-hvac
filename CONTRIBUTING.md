@@ -21,6 +21,21 @@ python3 -m venv .venv
 
 Run commands from the repository root. Do not commit the virtual environment, caches, Home Assistant storage, backups, or diagnostic downloads.
 
+### Test dependency compatibility
+
+The Git-pinned `pytest-homeassistant-custom-component` fixture in
+`requirements_dev.txt` pins its own test runner dependencies, including `pytest`
+and `pytest-asyncio`. Do not add independent version overrides for those packages:
+they can make the environment impossible to resolve before tests even start.
+The current fixture selects pytest 9.0.3 and pytest-asyncio 1.4.0. Removing redundant
+direct pins does not upgrade either package or relax the fixture's exact pins.
+
+Upgrade the fixture and Home Assistant Core as a coordinated compatibility change,
+then resolve from a clean environment and run the complete verification suite.
+Inspect the resolver's selected Core and runner versions to catch accidental
+backtracking. Do not bypass conflicts with `--no-deps`, downgrade Core implicitly,
+or weaken tests. Ruff and mypy are independently pinned development tools.
+
 ## Test-driven workflow
 
 For behavior changes:
