@@ -5,9 +5,9 @@ from __future__ import annotations
 import asyncio
 
 import pytest
+from ha_fixtures import async_mock_service
 from homeassistant.const import EVENT_CALL_SERVICE
 from homeassistant.core import callback
-from pytest_homeassistant_custom_component.common import async_mock_service
 from test_integration import entity_id, make_entry, set_source_states
 
 from custom_components.virtual_hvac.control import VirtualMode

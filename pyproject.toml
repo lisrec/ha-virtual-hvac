@@ -25,8 +25,9 @@ where = ["."]
 include = ["custom_components*"]
 
 [tool.pytest.ini_options]
-addopts = "-q --strict-markers --disable-warnings"
+addopts = "-q --strict-markers --disable-warnings -p no:respx"
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
 pythonpath = ["."]
 

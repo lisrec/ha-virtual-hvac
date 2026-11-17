@@ -4,6 +4,7 @@ from datetime import timedelta
 from types import MappingProxyType
 
 import pytest
+from ha_fixtures import MockConfigEntry, async_mock_service
 from homeassistant.components.climate import (
     ATTR_HVAC_ACTION,
     ATTR_HVAC_MODES,
@@ -25,7 +26,6 @@ from homeassistant.core import callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util.dt import utcnow
 from homeassistant.util.unit_system import US_CUSTOMARY_SYSTEM
-from pytest_homeassistant_custom_component.common import MockConfigEntry, async_mock_service
 
 from custom_components.virtual_hvac.const import DOMAIN, SUBENTRY_ROOM
 from custom_components.virtual_hvac.control import Preset, VirtualMode

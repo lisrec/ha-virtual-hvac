@@ -6,10 +6,10 @@ from pathlib import Path
 from types import MappingProxyType
 
 import pytest
+from ha_fixtures import MockConfigEntry, async_fire_time_changed
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util.dt import utcnow
-from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
 from test_integration import set_source_states
 
 from custom_components.virtual_hvac.const import DOMAIN, SUBENTRY_ROOM

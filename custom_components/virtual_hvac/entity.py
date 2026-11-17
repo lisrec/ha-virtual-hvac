@@ -2,17 +2,28 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceInfo
 
 from .const import DOMAIN
 from .runtime import ControllerRuntime, RoomRuntime
 
+if TYPE_CHECKING:
+    from homeassistant.helpers.device_registry import ChildDeviceInfo
+else:
+    # Core 2026.8 supports the same metadata through DeviceInfo, but has no
+    # ChildDeviceInfo type. Keep annotations resolvable on that supported Core.
+    ChildDeviceInfo = getattr(dr, "ChildDeviceInfo", DeviceInfo)
+
 
 class VirtualHVACRoomEntity:
     """Common metadata and update wiring for room entities."""
 
+    hass: HomeAssistant
     _attr_has_entity_name = True
-    _attr_device_info: DeviceInfo | None
     _attr_name: str | None
     _attr_unique_id: str | None
 
@@ -24,14 +35,25 @@ class VirtualHVACRoomEntity:
         name: str | None,
     ) -> None:
         self.room = room
+        self._entry_id = entry_id
         self._attr_unique_id = f"{entry_id}_{room.subentry_id}_{unique_suffix}"
         self._attr_name = name
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, f"{entry_id}:{room.subentry_id}")},
-            name=room.config.name,
+
+    @property
+    def device_info(self) -> DeviceInfo | ChildDeviceInfo | None:
+        """Resolve the registered parent only after HA attaches the entity."""
+        # The lifecycle registers the controller before forwarding any platform.
+        parent = dr.async_get(self.hass).async_get_device_by_identifier(
+            (DOMAIN, self._entry_id), self._entry_id
+        )
+        if parent is None:
+            raise RuntimeError("Virtual HVAC controller device must be registered first")
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"{self._entry_id}:{self.room.subentry_id}")},
+            name=self.room.config.name,
             manufacturer="Virtual HVAC",
             model="Room controller",
-            via_device=(DOMAIN, entry_id),
+            via_device_id=parent.id,
         )
 
     async def async_added_to_hass(self) -> None:
@@ -47,7 +69,7 @@ class VirtualHVACControllerEntity:
     """Common metadata and update wiring for controller entities."""
 
     _attr_has_entity_name = True
-    _attr_device_info: DeviceInfo | None
+    _attr_device_info: DeviceInfo | ChildDeviceInfo | None
     _attr_name: str | None
     _attr_unique_id: str | None
 

@@ -5,9 +5,9 @@ from datetime import timedelta
 from unittest.mock import Mock
 
 import pytest
+from ha_fixtures import async_fire_time_changed
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util.dt import utcnow
-from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
 from custom_components.virtual_hvac.actuators import ActuatorAdapter
 from custom_components.virtual_hvac.control import VirtualMode

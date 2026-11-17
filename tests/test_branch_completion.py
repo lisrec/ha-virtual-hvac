@@ -6,10 +6,10 @@ from types import MappingProxyType, SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
+from ha_fixtures import MockConfigEntry
 from homeassistant.components.climate import ClimateEntityFeature, HVACAction
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.const import STATE_UNKNOWN
-from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.virtual_hvac.climate import VirtualRoomClimate
 from custom_components.virtual_hvac.config_flow import RoomSubentryFlow

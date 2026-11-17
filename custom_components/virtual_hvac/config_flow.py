@@ -21,6 +21,7 @@ from homeassistant.const import (
     UnitOfTemperature,
 )
 from homeassistant.core import callback
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.selector import (
     BooleanSelector,
     EntitySelector,
@@ -68,6 +69,11 @@ from .const import (
 )
 from .models import ControllerConfig, RoomConfig, validate_output_ownership
 
+# Core owns the schema implementation (Voluptuous on the compatibility lane,
+# Probatio on modern Core). Use its public schema exemplar's concrete type at
+# the form boundary, preserving native nominal types without casts or ignores.
+_FORM_SCHEMA = type(cv.PLATFORM_SCHEMA)
+
 _TEMPERATURE_UNITS = {
     UnitOfTemperature.CELSIUS,
     UnitOfTemperature.FAHRENHEIT,
@@ -90,129 +96,123 @@ def _number_selector(
     return NumberSelector(config)
 
 
-def _controller_schema(defaults: Mapping[str, Any] | None = None) -> vol.Schema:
+def _controller_fields(defaults: Mapping[str, Any] | None = None) -> dict[vol.Marker, Any]:
     values = defaults or {}
-    return vol.Schema(
-        {
-            vol.Required(
-                CONF_NAME, default=values.get(CONF_NAME, DEFAULT_CONTROLLER_NAME)
-            ): TextSelector(),
-            vol.Optional(
-                CONF_SHARED_HEAT_SOURCE,
-                description={"suggested_value": values.get(CONF_SHARED_HEAT_SOURCE)},
-            ): EntitySelector(EntitySelectorConfig(domain=Platform.SWITCH)),
-            vol.Required(
-                CONF_ENABLE_SAFE_HEATING_DELAY,
-                default=values.get(CONF_ENABLE_SAFE_HEATING_DELAY, False),
-            ): BooleanSelector(),
-            vol.Required(
-                CONF_MIN_HEATING_ON, default=values.get(CONF_MIN_HEATING_ON, 300)
-            ): _number_selector(0, 86_400, 1, "s"),
-            vol.Required(
-                CONF_MIN_HEATING_OFF, default=values.get(CONF_MIN_HEATING_OFF, 180)
-            ): _number_selector(0, 86_400, 1, "s"),
-        }
-    )
+    return {
+        vol.Required(
+            CONF_NAME, default=values.get(CONF_NAME, DEFAULT_CONTROLLER_NAME)
+        ): TextSelector(),
+        vol.Optional(
+            CONF_SHARED_HEAT_SOURCE,
+            description={"suggested_value": values.get(CONF_SHARED_HEAT_SOURCE)},
+        ): EntitySelector(EntitySelectorConfig(domain=Platform.SWITCH)),
+        vol.Required(
+            CONF_ENABLE_SAFE_HEATING_DELAY,
+            default=values.get(CONF_ENABLE_SAFE_HEATING_DELAY, False),
+        ): BooleanSelector(),
+        vol.Required(
+            CONF_MIN_HEATING_ON, default=values.get(CONF_MIN_HEATING_ON, 300)
+        ): _number_selector(0, 86_400, 1, "s"),
+        vol.Required(
+            CONF_MIN_HEATING_OFF, default=values.get(CONF_MIN_HEATING_OFF, 180)
+        ): _number_selector(0, 86_400, 1, "s"),
+    }
 
 
-def _room_schema(defaults: Mapping[str, Any] | None = None) -> vol.Schema:
+def _room_fields(defaults: Mapping[str, Any] | None = None) -> dict[vol.Marker, Any]:
     values = defaults or {}
-    return vol.Schema(
-        {
-            vol.Required(CONF_NAME, default=values.get(CONF_NAME, "")): TextSelector(),
-            vol.Required(
-                CONF_TEMPERATURE_SENSORS,
-                default=values.get(CONF_TEMPERATURE_SENSORS, []),
-            ): EntitySelector(
-                EntitySelectorConfig(
-                    domain=Platform.SENSOR,
-                    device_class="temperature",
-                    multiple=True,
-                )
-            ),
-            vol.Optional(
-                CONF_AC_ENTITIES,
-                default=values.get(CONF_AC_ENTITIES, []),
-            ): EntitySelector(EntitySelectorConfig(domain=Platform.CLIMATE, multiple=True)),
-            vol.Optional(
-                CONF_HEATER_ENTITIES,
-                default=values.get(CONF_HEATER_ENTITIES, []),
-            ): EntitySelector(
-                EntitySelectorConfig(domain=[Platform.CLIMATE, Platform.SWITCH], multiple=True)
-            ),
-            vol.Optional(
-                CONF_WINDOW_ENTITIES,
-                default=values.get(CONF_WINDOW_ENTITIES, []),
-            ): EntitySelector(EntitySelectorConfig(domain=Platform.BINARY_SENSOR, multiple=True)),
-            vol.Required(
-                CONF_SHARED_HEAT_REQUEST,
-                default=values.get(CONF_SHARED_HEAT_REQUEST, False),
-            ): BooleanSelector(),
-            vol.Required(
-                CONF_WINDOW_OPEN_BEHAVIOR,
-                default=values.get(
-                    CONF_WINDOW_OPEN_BEHAVIOR, WindowOpenBehavior.TURN_OFF_HVAC.value
-                ),
-            ): SelectSelector(
-                SelectSelectorConfig(
-                    options=[behavior.value for behavior in WindowOpenBehavior],
-                    mode=SelectSelectorMode.DROPDOWN,
-                )
-            ),
-            vol.Required(
-                CONF_WINDOW_OPEN_DELAY,
-                default=values.get(CONF_WINDOW_OPEN_DELAY, 5.0),
-            ): _number_selector(0, MAX_WINDOW_OPEN_DELAY_MINUTES, 1, "min"),
-            vol.Optional(
-                CONF_RAPID_ENTITY,
-                description={"suggested_value": values.get(CONF_RAPID_ENTITY)},
-            ): EntitySelector(EntitySelectorConfig(domain=Platform.SWITCH)),
-            vol.Optional(
-                CONF_SILENT_ENTITY,
-                description={"suggested_value": values.get(CONF_SILENT_ENTITY)},
-            ): EntitySelector(EntitySelectorConfig(domain=Platform.SWITCH)),
-            vol.Required(
-                CONF_HEAT_HYSTERESIS_ON,
-                default=values.get(CONF_HEAT_HYSTERESIS_ON, 1.0),
-            ): _number_selector(0.1, 5.0, 0.1, "°"),
-            vol.Required(
-                CONF_HEAT_HYSTERESIS_OFF,
-                default=values.get(CONF_HEAT_HYSTERESIS_OFF, 0.0),
-            ): _number_selector(0.0, 5.0, 0.1, "°"),
-            vol.Required(
-                CONF_COOL_HYSTERESIS_ON,
-                default=values.get(CONF_COOL_HYSTERESIS_ON, 1.0),
-            ): _number_selector(0.1, 5.0, 0.1, "°"),
-            vol.Required(
-                CONF_COOL_HYSTERESIS_OFF,
-                default=values.get(CONF_COOL_HYSTERESIS_OFF, 0.0),
-            ): _number_selector(0.0, 5.0, 0.1, "°"),
-            vol.Required(
-                CONF_ENABLE_SAFE_COOLING_DELAY,
-                default=values.get(CONF_ENABLE_SAFE_COOLING_DELAY, False),
-            ): BooleanSelector(),
-            vol.Required(
-                CONF_MIN_COOLING_ON, default=values.get(CONF_MIN_COOLING_ON, 300)
-            ): _number_selector(0, 86_400, 1, "s"),
-            vol.Required(
-                CONF_MIN_COOLING_OFF, default=values.get(CONF_MIN_COOLING_OFF, 300)
-            ): _number_selector(0, 86_400, 1, "s"),
-            vol.Required(
-                CONF_REVERSAL_GUARD, default=values.get(CONF_REVERSAL_GUARD, 300)
-            ): _number_selector(0, 86_400, 1, "s"),
-            vol.Required(
-                CONF_TRV_OFFSET, default=values.get(CONF_TRV_OFFSET, 1.0)
-            ): _number_selector(0, 5.0, 0.1, "°"),
-            vol.Required(
-                CONF_BOOST_AC_HEAT,
-                default=values.get(CONF_BOOST_AC_HEAT, True),
-            ): BooleanSelector(),
-            vol.Optional(
-                CONF_TEMPERATURE_MAX_AGE,
-                description={"suggested_value": values.get(CONF_TEMPERATURE_MAX_AGE, 300)},
-            ): _number_selector(1, 604_800, 1, "s"),
-        }
-    )
+    return {
+        vol.Required(CONF_NAME, default=values.get(CONF_NAME, "")): TextSelector(),
+        vol.Required(
+            CONF_TEMPERATURE_SENSORS,
+            default=values.get(CONF_TEMPERATURE_SENSORS, []),
+        ): EntitySelector(
+            EntitySelectorConfig(
+                domain=Platform.SENSOR,
+                device_class="temperature",
+                multiple=True,
+            )
+        ),
+        vol.Optional(
+            CONF_AC_ENTITIES,
+            default=values.get(CONF_AC_ENTITIES, []),
+        ): EntitySelector(EntitySelectorConfig(domain=Platform.CLIMATE, multiple=True)),
+        vol.Optional(
+            CONF_HEATER_ENTITIES,
+            default=values.get(CONF_HEATER_ENTITIES, []),
+        ): EntitySelector(
+            EntitySelectorConfig(domain=[Platform.CLIMATE, Platform.SWITCH], multiple=True)
+        ),
+        vol.Optional(
+            CONF_WINDOW_ENTITIES,
+            default=values.get(CONF_WINDOW_ENTITIES, []),
+        ): EntitySelector(EntitySelectorConfig(domain=Platform.BINARY_SENSOR, multiple=True)),
+        vol.Required(
+            CONF_SHARED_HEAT_REQUEST,
+            default=values.get(CONF_SHARED_HEAT_REQUEST, False),
+        ): BooleanSelector(),
+        vol.Required(
+            CONF_WINDOW_OPEN_BEHAVIOR,
+            default=values.get(CONF_WINDOW_OPEN_BEHAVIOR, WindowOpenBehavior.TURN_OFF_HVAC.value),
+        ): SelectSelector(
+            SelectSelectorConfig(
+                options=[behavior.value for behavior in WindowOpenBehavior],
+                mode=SelectSelectorMode.DROPDOWN,
+            )
+        ),
+        vol.Required(
+            CONF_WINDOW_OPEN_DELAY,
+            default=values.get(CONF_WINDOW_OPEN_DELAY, 5.0),
+        ): _number_selector(0, MAX_WINDOW_OPEN_DELAY_MINUTES, 1, "min"),
+        vol.Optional(
+            CONF_RAPID_ENTITY,
+            description={"suggested_value": values.get(CONF_RAPID_ENTITY)},
+        ): EntitySelector(EntitySelectorConfig(domain=Platform.SWITCH)),
+        vol.Optional(
+            CONF_SILENT_ENTITY,
+            description={"suggested_value": values.get(CONF_SILENT_ENTITY)},
+        ): EntitySelector(EntitySelectorConfig(domain=Platform.SWITCH)),
+        vol.Required(
+            CONF_HEAT_HYSTERESIS_ON,
+            default=values.get(CONF_HEAT_HYSTERESIS_ON, 1.0),
+        ): _number_selector(0.1, 5.0, 0.1, "°"),
+        vol.Required(
+            CONF_HEAT_HYSTERESIS_OFF,
+            default=values.get(CONF_HEAT_HYSTERESIS_OFF, 0.0),
+        ): _number_selector(0.0, 5.0, 0.1, "°"),
+        vol.Required(
+            CONF_COOL_HYSTERESIS_ON,
+            default=values.get(CONF_COOL_HYSTERESIS_ON, 1.0),
+        ): _number_selector(0.1, 5.0, 0.1, "°"),
+        vol.Required(
+            CONF_COOL_HYSTERESIS_OFF,
+            default=values.get(CONF_COOL_HYSTERESIS_OFF, 0.0),
+        ): _number_selector(0.0, 5.0, 0.1, "°"),
+        vol.Required(
+            CONF_ENABLE_SAFE_COOLING_DELAY,
+            default=values.get(CONF_ENABLE_SAFE_COOLING_DELAY, False),
+        ): BooleanSelector(),
+        vol.Required(
+            CONF_MIN_COOLING_ON, default=values.get(CONF_MIN_COOLING_ON, 300)
+        ): _number_selector(0, 86_400, 1, "s"),
+        vol.Required(
+            CONF_MIN_COOLING_OFF, default=values.get(CONF_MIN_COOLING_OFF, 300)
+        ): _number_selector(0, 86_400, 1, "s"),
+        vol.Required(
+            CONF_REVERSAL_GUARD, default=values.get(CONF_REVERSAL_GUARD, 300)
+        ): _number_selector(0, 86_400, 1, "s"),
+        vol.Required(CONF_TRV_OFFSET, default=values.get(CONF_TRV_OFFSET, 1.0)): _number_selector(
+            0, 5.0, 0.1, "°"
+        ),
+        vol.Required(
+            CONF_BOOST_AC_HEAT,
+            default=values.get(CONF_BOOST_AC_HEAT, True),
+        ): BooleanSelector(),
+        vol.Optional(
+            CONF_TEMPERATURE_MAX_AGE,
+            description={"suggested_value": values.get(CONF_TEMPERATURE_MAX_AGE, 300)},
+        ): _number_selector(1, 604_800, 1, "s"),
+    }
 
 
 def _clean_optional_values(data: Mapping[str, Any]) -> dict[str, Any]:
@@ -252,7 +252,9 @@ class VirtualHVACConfigFlow(ConfigFlow, domain=DOMAIN):
                 self._abort_if_unique_id_configured()
                 return self.async_create_entry(title=config.name, data=config.to_mapping())
         return self.async_show_form(
-            step_id="user", data_schema=_controller_schema(user_input), errors=errors
+            step_id="user",
+            data_schema=_FORM_SCHEMA(_controller_fields(user_input)),
+            errors=errors,
         )
 
     async def async_step_reconfigure(
@@ -283,7 +285,7 @@ class VirtualHVACConfigFlow(ConfigFlow, domain=DOMAIN):
                     )
         return self.async_show_form(
             step_id="reconfigure",
-            data_schema=_controller_schema(entry.data),
+            data_schema=_FORM_SCHEMA(_controller_fields(entry.data)),
             errors=errors,
         )
 
@@ -340,7 +342,7 @@ class RoomSubentryFlow(ConfigSubentryFlow):
                     )
         return self.async_show_form(
             step_id="reconfigure" if reconfigure else "user",
-            data_schema=_room_schema(defaults),
+            data_schema=_FORM_SCHEMA(_room_fields(defaults)),
             errors=errors,
         )
 

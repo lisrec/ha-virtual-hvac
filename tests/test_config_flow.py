@@ -3,11 +3,11 @@ from __future__ import annotations
 from types import MappingProxyType
 
 import pytest
+from ha_fixtures import MockConfigEntry
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.const import ATTR_DEVICE_CLASS, ATTR_UNIT_OF_MEASUREMENT
 from homeassistant.data_entry_flow import FlowResultType
-from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.virtual_hvac.const import DOMAIN, SUBENTRY_ROOM, WindowOpenBehavior
 

@@ -49,7 +49,6 @@ class VirtualRoomClimate(VirtualHVACRoomEntity, ClimateEntity, RestoreEntity):
     """User-facing virtual thermostat for one room."""
 
     _attr_should_poll = False
-    _attr_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_min_temp = 5.0
     _attr_max_temp = 35.0
     _attr_target_temperature_step = 0.5
@@ -64,13 +63,16 @@ class VirtualRoomClimate(VirtualHVACRoomEntity, ClimateEntity, RestoreEntity):
         return self.room.command_available
 
     @property
-    @override
-    def current_temperature(self) -> float | None:
+    def native_temperature_unit(self) -> str:
+        """Room intent and measurements always use Celsius internally."""
+        return UnitOfTemperature.CELSIUS
+
+    @property
+    def native_current_temperature(self) -> float | None:
         return self.room.current_temperature
 
     @property
-    @override
-    def target_temperature(self) -> float:
+    def native_target_temperature(self) -> float:
         return self.room.target_temperature
 
     @property
@@ -263,3 +265,15 @@ class VirtualRoomClimate(VirtualHVACRoomEntity, ClimateEntity, RestoreEntity):
         modes = self.room.supported_virtual_modes()
         preferred = VirtualMode.AUTO if VirtualMode.AUTO in modes else modes[1]
         await self.room.async_set_mode(preferred)
+
+
+# Core 2026.9 has no native climate temperature API. Bridge only that API;
+# modern Core owns the final legacy descriptors and must not be overridden.
+# Alias the descriptors, not sampled values, so every access stays live.
+if not hasattr(ClimateEntity, "native_temperature_unit"):
+    for _legacy_name, _native_name in (
+        ("temperature_unit", "native_temperature_unit"),
+        ("current_temperature", "native_current_temperature"),
+        ("target_temperature", "native_target_temperature"),
+    ):
+        setattr(VirtualRoomClimate, _legacy_name, getattr(VirtualRoomClimate, _native_name))
