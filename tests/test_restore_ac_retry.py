@@ -5,8 +5,8 @@ from __future__ import annotations
 from types import MappingProxyType
 
 import pytest
+from ha_fixtures import MockConfigEntry, async_mock_service
 from homeassistant.config_entries import ConfigEntryState, ConfigSubentry
-from pytest_homeassistant_custom_component.common import MockConfigEntry, async_mock_service
 from test_integration import make_entry, set_source_states
 
 from custom_components.virtual_hvac.const import DOMAIN

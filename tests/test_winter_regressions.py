@@ -8,10 +8,10 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 import pytest
+from ha_fixtures import async_fire_time_changed
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util.dt import utcnow
 from homeassistant.util.unit_system import US_CUSTOMARY_SYSTEM
-from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
 from custom_components.virtual_hvac import async_unload_entry
 from custom_components.virtual_hvac.actuators import ActuatorAdapter

@@ -3,8 +3,8 @@ from __future__ import annotations
 from types import MappingProxyType
 
 import pytest
+from ha_fixtures import MockConfigEntry
 from homeassistant.config_entries import ConfigSubentry
-from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.virtual_hvac import async_migrate_entry
 from custom_components.virtual_hvac.const import DOMAIN, SUBENTRY_ROOM, WindowOpenBehavior

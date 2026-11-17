@@ -5,8 +5,8 @@ from __future__ import annotations
 from datetime import timedelta
 
 import pytest
+from ha_fixtures import async_fire_time_changed
 from homeassistant.util.dt import utcnow
-from pytest_homeassistant_custom_component.common import async_fire_time_changed
 from test_winter_regressions import register_devices, room_config, set_climate
 
 from custom_components.virtual_hvac.control import OutputMode, Preset, VirtualMode

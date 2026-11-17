@@ -9,8 +9,17 @@ permissions:
 
 jobs:
   quality:
+    name: Quality (${{ matrix.core }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - core: "2026.11.1"
+            requirements: requirements_dev.txt
+          - core: "2026.9.4-production-compat"
+            requirements: requirements_compat.txt
     steps:
       - name: Checkout
         uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
@@ -29,7 +38,7 @@ jobs:
         run: uv venv .venv --python 3.14
 
       - name: Install dependencies
-        run: uv pip install --python .venv/bin/python -r requirements_dev.txt
+        run: uv pip install --python .venv/bin/python -r "${{ matrix.requirements }}"
 
       - name: Ruff lint
         run: .venv/bin/ruff check .

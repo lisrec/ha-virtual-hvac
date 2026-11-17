@@ -5,9 +5,9 @@ from datetime import timedelta
 from unittest.mock import Mock
 
 import pytest
+from ha_fixtures import async_fire_time_changed
 from homeassistant.core import Event, State, callback
 from homeassistant.util.dt import utcnow
-from pytest_homeassistant_custom_component.common import async_fire_time_changed
 from test_audit_regressions import config, switches
 from test_runtime_branches import make_room, set_authoritative_states
 

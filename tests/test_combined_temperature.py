@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import pytest
 import voluptuous as vol
+from ha_fixtures import async_mock_service
 from homeassistant.components.climate import HVACMode
 from homeassistant.const import EVENT_CALL_SERVICE
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util.unit_system import US_CUSTOMARY_SYSTEM
-from pytest_homeassistant_custom_component.common import async_mock_service
 from test_integration import entity_id, make_entry, set_source_states
 
 from custom_components.virtual_hvac.control import Preset, VirtualMode

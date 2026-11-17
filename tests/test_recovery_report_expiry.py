@@ -4,10 +4,10 @@ import asyncio
 from types import MappingProxyType
 
 import pytest
+from ha_fixtures import MockConfigEntry, async_fire_time_changed
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.const import EVENT_CALL_SERVICE
 from homeassistant.util.dt import utcnow
-from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
 from test_integration import entity_id
 from test_winter_regressions import register_devices, room_config, set_climate
 
