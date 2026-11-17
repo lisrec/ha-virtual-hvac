@@ -2,12 +2,21 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
-from homeassistant.helpers.device_registry import ChildDeviceInfo, DeviceInfo
+from homeassistant.helpers.device_registry import DeviceInfo
 
 from .const import DOMAIN
 from .runtime import ControllerRuntime, RoomRuntime
+
+if TYPE_CHECKING:
+    from homeassistant.helpers.device_registry import ChildDeviceInfo
+else:
+    # Core 2026.8 supports the same metadata through DeviceInfo, but has no
+    # ChildDeviceInfo type. Keep annotations resolvable on that supported Core.
+    ChildDeviceInfo = getattr(dr, "ChildDeviceInfo", DeviceInfo)
 
 
 class VirtualHVACRoomEntity:
