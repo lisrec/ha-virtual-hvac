@@ -1,5 +1,5 @@
 # Actual production Core compatibility lane, isolated from modern fixture.
-homeassistant==2026.9.4
+homeassistant==2026.11.1
 pytest-homeassistant-custom-component @ git+https://github.com/MatthewFlamm/pytest-homeassistant-custom-component.git@ecc26f34993d166edac608197b1df172d9da23de
 # This fixture owns the exact pytest / pytest-asyncio pins; do not override.
 pytest-cov==7.1.0

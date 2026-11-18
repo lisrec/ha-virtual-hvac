@@ -1,4 +1,4 @@
-homeassistant==2026.11.2
+homeassistant==2026.11.1
 pytest-homeassistant==2026.11.2
 # The official HA fixture owns the exact pytest and pytest-asyncio versions.
 # Upgrade that fixture and Home Assistant together; do not override its pins.
