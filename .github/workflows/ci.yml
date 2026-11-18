@@ -27,7 +27,7 @@ jobs:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@963ce8fe9e4fb39553bd07a010f5e986c4dcff9d
+        uses: astral-sh/setup-uv@b0fdc328c65964c12e997446c1c75b18577b9f1a
         with:
           version: "0.13.8" # Includes the GHSA-hq85-5cpj-mr62 fix (>=0.13.4).
 
