@@ -1,7 +1,6 @@
-homeassistant==2026.11.2
+# This exact fixture owns Core 2026.11.2 as well as the test runners.
 pytest-homeassistant==2026.11.2
-# The official HA fixture owns the exact pytest and pytest-asyncio versions.
-# Upgrade that fixture and Home Assistant together; do not override its pins.
+# Upgrade the fixture to migrate Core; do not independently override its pins.
 pytest-cov==7.1.0
 ruff==0.17.5
 mypy==2.4.1
