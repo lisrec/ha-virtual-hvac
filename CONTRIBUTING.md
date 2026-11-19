@@ -23,18 +23,30 @@ Run commands from the repository root. Do not commit the virtual environment, ca
 
 ### Test dependency compatibility
 
-The Git-pinned `pytest-homeassistant-custom-component` fixture in
-`requirements_dev.txt` pins its own test runner dependencies, including `pytest`
-and `pytest-asyncio`. Do not add independent version overrides for those packages:
-they can make the environment impossible to resolve before tests even start.
-The current fixture selects pytest 9.0.3 and pytest-asyncio 1.4.0. Removing redundant
-direct pins does not upgrade either package or relax the fixture's exact pins.
+`requirements_dev.txt` uses Core's official `pytest-homeassistant==2026.11.2`,
+which pins Home Assistant Core 2026.11.2, pytest 9.0.3 and pytest-asyncio 1.4.0.
+`requirements_compat.txt` retains the immutable legacy fixture commit
+`ecc26f34993d166edac608197b1df172d9da23de`, which pins Core 2026.9.4 and the same
+runners. Install these files into separate environments; never install both
+overlapping fixture plugins together.
+
+The fixture is the single owner of exact Core and runner versions. Do not add
+independent `homeassistant`, `pytest` or `pytest-asyncio` overrides: a standalone
+Dependabot Core update can conflict with both fixtures, including downgrading the
+modern lane while removing the retained compatibility version. Removing those
+redundant declarations changes no selected Core or runner version and does not
+relax their exact transitive pins. The dependency-ownership tests verify the
+manifest contract and the installed distributions' real exact requirements.
 
 Upgrade the fixture and Home Assistant Core as a coordinated compatibility change,
 then resolve from a clean environment and run the complete verification suite.
 Inspect the resolver's selected Core and runner versions to catch accidental
 backtracking. Do not bypass conflicts with `--no-deps`, downgrade Core implicitly,
 or weaken tests. Ruff and mypy are independently pinned development tools.
+
+The compatibility lane is not a security-clean environment or a deployment
+recommendation. Its Core-owned library risks remain tracked in #25; a clean modern
+audit does not establish production exposure or remediate the compatibility lane.
 
 ## Test-driven workflow
 
