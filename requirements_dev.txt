@@ -2,5 +2,5 @@
 pytest-homeassistant==2026.11.2
 # Upgrade the fixture to migrate Core; do not independently override its pins.
 pytest-cov==7.1.0
-ruff==0.17.5
+ruff==0.17.6
 mypy==2.4.1
